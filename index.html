@@ -35,6 +35,7 @@ header {
 .btn-secondary:hover { background: #5a9a7c; transform: translateY(-1px); }
 .btn-ghost { background: transparent; color: var(--text-light); border: 1px solid var(--border); }
 .btn-ghost:hover { background: var(--bg); }
+.btn-ghost.active { background: #FFF3CD; color: #856404; border-color: #FFCC02; }
 .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
 .week-selector {
   background: white; border-radius: var(--radius); padding: 20px 24px;
@@ -167,7 +168,7 @@ pb { padding-bottom: 100px; display: block; }
 <div class="bottom-bar">
   <div class="bottom-bar-info" id="bottomInfo">메뉴를 생성하면 편집할 수 있어요</div>
   <div class="bottom-bar-actions">
-    <button class="btn btn-ghost" onclick="checkConflicts()">🔍 재료 중복 확인</button>
+    <button class="btn btn-ghost" id="conflictBtn" onclick="checkConflicts()">🔍 재료 중복 확인</button>
     <button class="btn btn-ghost" id="downloadBtn" onclick="downloadImages()">🖼️ 이미지 다운로드</button>
     <button class="btn btn-secondary" onclick="saveMenu()">💾 이번 주 저장</button>
   </div>
@@ -589,7 +590,7 @@ function renderDay(day, di) {
             ${menu.displayName || menu.name}
             <span class="category-tag ${tagClass}">${tagLabel}</span>
           </div>
-          <div class="menu-ingredients">${menu.ingredients}</div>
+          <div class="menu-ingredients">${highlightIngreds(menu.ingredients)}</div>
         </div>
         <div class="menu-actions">
           <button class="action-btn edit" onclick="openEdit(${di},${mi})">✏️</button>
@@ -777,22 +778,50 @@ function saveMenu() {
 }
 
 // ===== 중복 확인 =====
+let _conflictMode = false;
+let _dupSet = new Set();
+
+function highlightIngreds(str) {
+  if (!_conflictMode || _dupSet.size === 0) return str;
+  return str.split(',').map(part => {
+    const t = part.trim();
+    if (_dupSet.has(t)) return ` <mark style="background:#FFE066;border-radius:3px;padding:0 3px;font-weight:700">${t}</mark>`;
+    return part;
+  }).join(',');
+}
+
 function checkConflicts() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
+
+  if (_conflictMode) {
+    _conflictMode = false;
+    _dupSet.clear();
+    renderMenu();
+    document.getElementById('conflictBtn').classList.remove('active');
+    return;
+  }
+
   const all = [];
   currentMenu.forEach(day => {
     if (day.type === 'yushik') {
       day.menus.forEach(m => {
-        m.ingredients.split(/[,\s]+/).forEach(i => { if (i.length > 1) all.push(i.trim()); });
+        m.ingredients.split(',').forEach(i => { const t = i.trim(); if (t) all.push(t); });
       });
     }
   });
-  const exempt = new Set(['양파','채소상탕','한우육수','닭육수','당근','']);
+
+  const exempt = new Set(['양파','채소상탕','한우육수','닭육수','당근','채소육수','한우','닭가슴살','닭','양파','소금','채소육수','']);
   const counts = {};
   all.forEach(i => { if (!exempt.has(i)) counts[i] = (counts[i]||0)+1; });
   const dups = Object.entries(counts).filter(([k,v]) => v > 1);
-  if (dups.length === 0) showToast('✅ 이번 주 재료 중복 없음!');
-  else showToast(`⚠️ 중복 재료: ${dups.map(d=>d[0]).join(', ')}`);
+
+  if (dups.length === 0) { showToast('✅ 이번 주 재료 중복 없음!'); return; }
+
+  _dupSet = new Set(dups.map(d => d[0]));
+  _conflictMode = true;
+  renderMenu();
+  document.getElementById('conflictBtn').classList.add('active');
+  showToast(`⚠️ 중복 재료 ${dups.length}개 강조 표시됨`);
 }
 
 // ===== 히스토리 보기 =====
