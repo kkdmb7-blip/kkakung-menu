@@ -1,14 +1,14 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import io
-import urllib.request
 import os
 from PIL import Image, ImageDraw, ImageFont
 
-FONT_URLS = {
-    'bold':    'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Korean/NotoSansCJKkr-Bold.otf',
-    'regular': 'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf',
-    'light':   'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Korean/NotoSansCJKkr-Light.otf',
+_FONT_DIR = os.path.join(os.path.dirname(__file__), 'fonts')
+FONT_PATHS = {
+    'bold':    os.path.join(_FONT_DIR, 'NanumGothic-Bold.ttf'),
+    'regular': os.path.join(_FONT_DIR, 'NanumGothic-Regular.ttf'),
+    'light':   os.path.join(_FONT_DIR, 'NanumGothic-Regular.ttf'),
 }
 _font_cache = {}
 
@@ -16,10 +16,7 @@ def get_font(style, size):
     key = f"{style}_{size}"
     if key in _font_cache:
         return _font_cache[key]
-    tmp = f"/tmp/noto_{style}.otf"
-    if not os.path.exists(tmp):
-        urllib.request.urlretrieve(FONT_URLS[style], tmp)
-    f = ImageFont.truetype(tmp, size)
+    f = ImageFont.truetype(FONT_PATHS[style], size)
     _font_cache[key] = f
     return f
 
