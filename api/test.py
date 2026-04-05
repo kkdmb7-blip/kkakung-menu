@@ -7,15 +7,24 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         result = {}
         try:
-            from PIL import Image, ImageDraw, ImageFont
-            result['pillow'] = 'ok'
-            font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'NanumGothic-Regular.ttf')
-            f = ImageFont.truetype(font_path, 14)
-            result['font'] = 'ok'
-            img = Image.new('RGB', (100, 100), (255,255,255))
-            draw = ImageDraw.Draw(img)
-            draw.text((10,10), '테스트', fill=(0,0,0), font=f)
-            result['draw'] = 'ok'
+            import sys
+            sys.path.insert(0, os.path.dirname(__file__))
+            import menu_image as mi
+            result['import'] = 'ok'
+
+            data = {
+                "type": "yushik",
+                "date_str": "test",
+                "menus": [
+                    {"name": "t1", "ingred": ["a, b", "c, d"]},
+                    {"name": "t2", "ingred": ["e, f", "g, h"]},
+                    {"name": "t3", "ingred": ["i, j", "k, l"]}
+                ],
+                "origins": ""
+            }
+            png = mi.make_yushik_image(data)
+            result['png_size'] = len(png)
+            result['make'] = 'ok'
         except Exception as e:
             result['error'] = str(e)
             result['trace'] = traceback.format_exc()
