@@ -106,12 +106,17 @@ header {
 pb { padding-bottom: 100px; display: block; }
 
 @media (max-width: 600px) {
-  header { padding: 10px 14px; }
-  .logo { font-size: 16px; }
-  .logo span { font-size: 20px; }
-  .logo-text { display: none; }
-  header > div { gap: 6px; }
-  header .btn { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
+  header { padding: 10px 12px; }
+  .logo { font-size: 13px; white-space: nowrap; }
+  .logo span { font-size: 16px; }
+  header > div { gap: 6px; flex-shrink: 0; }
+  header .btn { padding: 6px 10px; font-size: 11px; white-space: nowrap; }
+
+  .week-selector { padding: 12px 14px; gap: 8px; }
+  .week-selector label { display: none; }
+  .week-selector input[type="date"] { padding: 6px 10px; font-size: 13px; flex: 1; min-width: 0; }
+  .week-selector span { flex-shrink: 0; }
+  .week-selector .btn { flex-shrink: 0; padding: 7px 12px; font-size: 12px; margin-left: 0 !important; }
 
   .bottom-bar { padding: 8px 12px; flex-wrap: nowrap; gap: 6px; }
   .bottom-bar-info { display: none; }
@@ -134,7 +139,7 @@ pb { padding-bottom: 100px; display: block; }
 </head>
 <body>
 <header>
-  <div class="logo"><span>🍚</span><span class="logo-text"> 까꿍 디미방 메뉴 생성기</span></div>
+  <div class="logo"><span>🍚</span> 까꿍 디미방</div>
   <div style="display:flex;gap:8px">
     <button class="btn btn-ghost" onclick="showHistory()">📋 히스토리</button>
     <button class="btn btn-primary" onclick="generateMenu()">✨ 새 메뉴 생성</button>
