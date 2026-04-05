@@ -104,6 +104,20 @@ header {
 .history-badge { font-size: 10px; background: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
 pb { padding-bottom: 100px; display: block; }
 
+@media (max-width: 600px) {
+  header { padding: 10px 14px; }
+  .logo { font-size: 15px; }
+  .logo span { font-size: 18px; }
+  header > div { gap: 6px; }
+  header .btn { padding: 7px 10px; font-size: 12px; }
+
+  .bottom-bar { padding: 8px 12px; flex-wrap: nowrap; gap: 6px; }
+  .bottom-bar-info { display: none; }
+  .bottom-bar-actions { display: flex; gap: 6px; width: 100%; }
+  .bottom-bar-actions .btn { flex: 1; padding: 8px 4px; font-size: 11px; text-align: center; white-space: nowrap; }
+  pb { padding-bottom: 70px; display: block; }
+}
+
 /* 히스토리 패널 */
 .history-panel { background: white; border-radius: var(--radius); padding: 20px 24px; margin-bottom: 24px; box-shadow: var(--shadow); }
 .history-panel h4 { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: var(--text-light); }
