@@ -2,14 +2,18 @@ from http.server import BaseHTTPRequestHandler
 import json
 import os
 import traceback
+import importlib.util
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         result = {}
         try:
-            import sys
-            sys.path.insert(0, os.path.dirname(__file__))
-            import menu_image as mi
+            spec = importlib.util.spec_from_file_location(
+                "menu_image",
+                os.path.join(os.path.dirname(__file__), 'menu-image.py')
+            )
+            mi = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mi)
             result['import'] = 'ok'
 
             data = {
@@ -24,7 +28,7 @@ class handler(BaseHTTPRequestHandler):
             }
             png = mi.make_yushik_image(data)
             result['png_size'] = len(png)
-            result['make'] = 'ok'
+            result['status'] = 'ok'
         except Exception as e:
             result['error'] = str(e)
             result['trace'] = traceback.format_exc()
