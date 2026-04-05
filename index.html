@@ -554,7 +554,11 @@ function renderDay(day, di) {
             <div class="day-label" style="color:rgba(255,255,255,0.8)">유아식</div>
             <div class="day-date">${dateStr}</div>
           </div>
-          <span style="font-size:11px;background:rgba(255,255,255,0.25);padding:4px 10px;border-radius:20px;font-weight:600">반찬5+국1</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="regenDay(${di})" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer">🔄</button>
+            <button onclick="removeDay(${di})" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer">🗑️</button>
+            <span style="font-size:11px;background:rgba(255,255,255,0.25);padding:4px 10px;border-radius:20px;font-weight:600">반찬5+국1</span>
+          </div>
         </div>
         <div class="section-title">반찬 메뉴</div>
         ${itemsHtml}
@@ -600,7 +604,11 @@ function renderDay(day, di) {
           <div class="day-label" style="color:#999">이유식</div>
           <div class="day-date" style="color:#2D2D2D">${dateStr}</div>
         </div>
-        <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:4px 10px;border-radius:20px;font-weight:600">중기·후기·완료기</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button onclick="regenDay(${di})" style="background:var(--primary-light);border:1px solid #f5c5aa;color:var(--primary);border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer">🔄</button>
+          <button onclick="removeDay(${di})" style="background:var(--primary-light);border:1px solid #f5c5aa;color:var(--primary);border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer">🗑️</button>
+          <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:4px 10px;border-radius:20px;font-weight:600">중기·후기·완료기</span>
+        </div>
       </div>
       ${menusHtml}
     </div>`;
@@ -721,6 +729,42 @@ function addYusik(di) {
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ===== 요일 삭제 / 재생성 =====
+function removeDay(di) {
+  currentMenu.splice(di, 1);
+  renderMenu();
+  showToast('🗑️ 해당 요일이 삭제되었어요');
+}
+
+function regenDay(di) {
+  const day = currentMenu[di];
+  const prevWeek = getPrevWeekVeggies();
+  const usedThisWeek = { hanwoo: [], chicken: [], p3: [] };
+  // 이번 주 다른 날 이미 사용된 재료 수집
+  currentMenu.forEach((d, i) => {
+    if (i !== di && d.type === 'yushik') {
+      d.menus.forEach(m => {
+        if (m.type === 'hanwoo') usedThisWeek.hanwoo.push(m.mainVeggie);
+        else if (m.type === 'chicken') usedThisWeek.chicken.push(m.mainVeggie);
+        else if (m.mainProtein) usedThisWeek.p3.push(m.mainProtein);
+      });
+    }
+  });
+
+  if (day.type === 'yushik') {
+    currentMenu[di].menus = buildYushikMenu(di, usedThisWeek, prevWeek);
+  } else {
+    const usedYusikNames = getUsedYusikNames();
+    const available = YUSIK_MAIN.filter(m => !usedYusikNames.has(m.name));
+    const pool = available.length >= 5 ? available : YUSIK_MAIN;
+    const shuffled = shuffle(pool);
+    currentMenu[di].items = shuffled.slice(0, 5);
+    currentMenu[di].soup = shuffle(YUSIK_SOUP)[0];
+  }
+  renderMenu();
+  showToast('🔄 메뉴가 새로 생성되었어요');
+}
 
 // ===== 저장 =====
 function saveMenu() {
