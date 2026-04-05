@@ -531,6 +531,15 @@ function renderMenu() {
 
 function renderDay(day, di) {
   const dateStr = formatKorDate(day.date);
+  if (day.removed) {
+    return `
+      <div class="day-card" style="opacity:0.5;border:2px dashed var(--border);">
+        <div style="padding:20px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="font-size:14px;color:var(--text-light)">🗓️ ${dateStr} <span style="font-size:12px">(공휴일)</span></div>
+          <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;white-space:nowrap" onclick="regenDay(${di})">+ 메뉴 생성</button>
+        </div>
+      </div>`;
+  }
   if (day.type === 'yusik') {
     const itemsHtml = day.items.map((item, ii) => `
       <div class="yusik-item">
@@ -559,7 +568,6 @@ function renderDay(day, di) {
             <div class="day-date">${dateStr}</div>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
-            <button onclick="regenDay(${di})" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer">🔄</button>
             <button onclick="removeDay(${di})" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer">🗑️</button>
             <span style="font-size:11px;background:rgba(255,255,255,0.25);padding:4px 10px;border-radius:20px;font-weight:600">반찬5+국1</span>
           </div>
@@ -609,7 +617,6 @@ function renderDay(day, di) {
           <div class="day-date" style="color:#2D2D2D">${dateStr}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <button onclick="regenDay(${di})" style="background:var(--primary-light);border:1px solid #f5c5aa;color:var(--primary);border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer">🔄</button>
           <button onclick="removeDay(${di})" style="background:var(--primary-light);border:1px solid #f5c5aa;color:var(--primary);border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer">🗑️</button>
           <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:4px 10px;border-radius:20px;font-weight:600">중기·후기·완료기</span>
         </div>
@@ -736,9 +743,9 @@ function closeModal(id) { document.getElementById(id).classList.remove('active')
 
 // ===== 요일 삭제 / 재생성 =====
 function removeDay(di) {
-  currentMenu.splice(di, 1);
+  currentMenu[di].removed = true;
   renderMenu();
-  showToast('🗑️ 해당 요일이 삭제되었어요');
+  showToast('🗑️ 공휴일 처리됨 — 메뉴 생성 버튼으로 복원 가능');
 }
 
 function regenDay(di) {
@@ -756,6 +763,7 @@ function regenDay(di) {
     }
   });
 
+  currentMenu[di].removed = false;
   if (day.type === 'yushik') {
     currentMenu[di].menus = buildYushikMenu(di, usedThisWeek, prevWeek);
   } else {
@@ -767,7 +775,7 @@ function regenDay(di) {
     currentMenu[di].soup = shuffle(YUSIK_SOUP)[0];
   }
   renderMenu();
-  showToast('🔄 메뉴가 새로 생성되었어요');
+  showToast('✅ 메뉴가 생성되었어요');
 }
 
 // ===== 저장 =====
