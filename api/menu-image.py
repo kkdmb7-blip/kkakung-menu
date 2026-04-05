@@ -241,10 +241,10 @@ class handler(BaseHTTPRequestHandler):
 
             if t == 'yushik':
                 png = make_yushik_image(data)
-                fname = f"이유식_{data.get('date_str','')}.png"
+                fname = "yushik-menu.png"
             elif t == 'yusik':
                 png = make_yusik_image(data)
-                fname = f"유아식_{data.get('date_str','')}.png"
+                fname = "yusik-menu.png"
             else:
                 self.send_response(400)
                 self.send_header('Content-Type', 'application/json')
