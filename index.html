@@ -377,53 +377,73 @@ const CHICKEN_MAIN_POOL = Object.keys(PAIRINGS.chicken);
 // 기타단백질 풀
 const P3_POOL = Object.keys(PAIRINGS.protein3);
 
-// ===== localStorage 히스토리 관리 =====
-// 구조: { yusik: [{weekKey, menus:[{name,ingredients}]}], yushik_veggie: [{weekKey, hanwoo:[...], chicken:[...], p3:[...]}] }
-const HISTORY_KEY = 'kkakung_history_v2';
+// ===== Supabase 히스토리 관리 =====
+const SB_URL = 'https://ymghmfkqctckxxysxkvy.supabase.co';
+const SB_KEY = 'sb_publishable_3-9zobXqx6Nv36LzmNMBpA_fohZqA5x';
+const CACHE_KEY = 'kkakung_history_v2';
 const MAX_WEEKS = 5;
 
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || { yusik: [], yushik_veggie: [] }; }
+async function loadHistory() {
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=eq.main&select=yusik,yushik_veggie`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+    });
+    const data = await res.json();
+    if (data && data.length > 0) {
+      const h = { yusik: data[0].yusik || [], yushik_veggie: data[0].yushik_veggie || [] };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(h));
+      return h;
+    }
+  } catch(e) { console.warn('Supabase load failed, using cache', e); }
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || { yusik: [], yushik_veggie: [] }; }
   catch(e) { return { yusik: [], yushik_veggie: [] }; }
 }
 
-function saveHistory(h) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+async function saveHistory(h) {
+  localStorage.setItem(CACHE_KEY, JSON.stringify(h));
+  try {
+    await fetch(`${SB_URL}/rest/v1/kkakung_history?id=eq.main`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`,
+        'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ yusik: h.yusik, yushik_veggie: h.yushik_veggie, updated_at: new Date().toISOString() })
+    });
+  } catch(e) { console.warn('Supabase save failed, saved to cache only', e); }
 }
 
 function getWeekKey(mondayDateStr) { return mondayDateStr; }
 
-// 5주 내 사용된 유아식 메뉴 이름 목록
-function getUsedYusikNames() {
-  const h = loadHistory();
+async function getUsedYusikNames() {
+  const h = await loadHistory();
   const used = new Set();
   h.yusik.forEach(w => w.menus.forEach(m => used.add(m.name)));
   return used;
 }
 
-// 전주 사용 야채 목록 (이유식)
-function getPrevWeekVeggies() {
-  const h = loadHistory();
+async function getPrevWeekVeggies() {
+  const h = await loadHistory();
   if (!h.yushik_veggie.length) return { hanwoo: [], chicken: [], p3: [] };
   const last = h.yushik_veggie[h.yushik_veggie.length - 1];
   return { hanwoo: last.hanwoo || [], chicken: last.chicken || [], p3: last.p3 || [] };
 }
 
-// 히스토리에 이번 주 저장
-function recordThisWeek(weekKey, menuData) {
-  const h = loadHistory();
+async function recordThisWeek(weekKey, menuData) {
+  const h = await loadHistory();
 
-  // 유아식 반찬 기록 (5주 유지)
   const yusikMenus = [];
   menuData.forEach(day => {
     if (day.type === 'yusik') {
       day.items.forEach(item => yusikMenus.push({ name: item.name, ingredients: item.ingredients }));
     }
   });
-  h.yusik.push({ weekKey, menus: yusikMenus });
+  // 같은 weekKey면 덮어쓰기
+  const existingIdx = h.yusik.findIndex(w => w.weekKey === weekKey);
+  if (existingIdx >= 0) h.yusik[existingIdx] = { weekKey, menus: yusikMenus };
+  else h.yusik.push({ weekKey, menus: yusikMenus });
   if (h.yusik.length > MAX_WEEKS) h.yusik = h.yusik.slice(-MAX_WEEKS);
 
-  // 이유식 야채 기록
   const usedHanwoo = [], usedChicken = [], usedP3 = [];
   menuData.forEach(day => {
     if (day.type === 'yushik') {
@@ -434,10 +454,12 @@ function recordThisWeek(weekKey, menuData) {
       });
     }
   });
-  h.yushik_veggie.push({ weekKey, hanwoo: usedHanwoo, chicken: usedChicken, p3: usedP3 });
+  const existingVIdx = h.yushik_veggie.findIndex(w => w.weekKey === weekKey);
+  if (existingVIdx >= 0) h.yushik_veggie[existingVIdx] = { weekKey, hanwoo: usedHanwoo, chicken: usedChicken, p3: usedP3 };
+  else h.yushik_veggie.push({ weekKey, hanwoo: usedHanwoo, chicken: usedChicken, p3: usedP3 });
   if (h.yushik_veggie.length > MAX_WEEKS) h.yushik_veggie = h.yushik_veggie.slice(-MAX_WEEKS);
 
-  saveHistory(h);
+  await saveHistory(h);
 }
 
 // ===== 메뉴 생성 로직 =====
@@ -534,23 +556,21 @@ function initDatePicker() {
   document.getElementById('weekEnd').value = formatDate(friday);
 }
 
-function generateMenu() {
+async function generateMenu() {
   const startVal = document.getElementById('weekStart').value;
   if (!startVal) { showToast('⚠️ 날짜를 먼저 선택해주세요'); return; }
+
+  showToast('⏳ 히스토리 불러오는 중...');
 
   const monday = new Date(startVal);
   const weekKey = formatDate(monday);
 
-  // 히스토리 로드
-  const usedYusikNames = getUsedYusikNames();
-  const prevWeek = getPrevWeekVeggies();
+  const [usedYusikNames, prevWeek] = await Promise.all([getUsedYusikNames(), getPrevWeekVeggies()]);
 
-  // 이번 주 사용 추적
   const usedThisWeek = { hanwoo: [], chicken: [], p3: [] };
 
-  // 유아식 반찬 풀에서 사용된 것 제거
   const availableYusik = YUSIK_MAIN.filter(m => !usedYusikNames.has(m.name));
-  const yusikPool = availableYusik.length >= 5 ? availableYusik : YUSIK_MAIN; // 다 써서 없으면 전체 풀 사용
+  const yusikPool = availableYusik.length >= 5 ? availableYusik : YUSIK_MAIN;
 
   const shuffledYusik = shuffle(yusikPool);
   const shuffledSoup = shuffle(YUSIK_SOUP);
@@ -562,11 +582,11 @@ function generateMenu() {
     const date = new Date(monday);
     date.setDate(monday.getDate() + i);
 
-    if (i === 2) { // 수요일 = 유아식
+    if (i === 2) {
       const items = shuffledYusik.slice(0, 5);
       const soup = shuffledSoup[0];
       days.push({ type: 'yusik', date, dayName: dayNames[i], items, soup });
-    } else { // 이유식
+    } else {
       const menus = buildYushikMenu(i, usedThisWeek, prevWeek);
       days.push({ type: 'yushik', date, dayName: dayNames[i], menus });
     }
@@ -894,11 +914,10 @@ function removeDay(di) {
   showToast('🗑️ 공휴일 처리됨 — 메뉴 생성 버튼으로 복원 가능');
 }
 
-function regenDay(di) {
+async function regenDay(di) {
   const day = currentMenu[di];
-  const prevWeek = getPrevWeekVeggies();
+  const prevWeek = await getPrevWeekVeggies();
   const usedThisWeek = { hanwoo: [], chicken: [], p3: [] };
-  // 이번 주 다른 날 이미 사용된 재료 수집
   currentMenu.forEach((d, i) => {
     if (i !== di && d.type === 'yushik') {
       d.menus.forEach(m => {
@@ -913,7 +932,7 @@ function regenDay(di) {
   if (day.type === 'yushik') {
     currentMenu[di].menus = buildYushikMenu(di, usedThisWeek, prevWeek);
   } else {
-    const usedYusikNames = getUsedYusikNames();
+    const usedYusikNames = await getUsedYusikNames();
     const available = YUSIK_MAIN.filter(m => !usedYusikNames.has(m.name));
     const pool = available.length >= 5 ? available : YUSIK_MAIN;
     const shuffled = shuffle(pool);
@@ -925,13 +944,14 @@ function regenDay(di) {
 }
 
 // ===== 저장 =====
-function saveMenu() {
+async function saveMenu() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
   const weekKey = document.getElementById('weekStart').value;
-  recordThisWeek(weekKey, currentMenu);
+  showToast('⏳ 저장 중...');
+  await recordThisWeek(weekKey, currentMenu);
   document.getElementById('bottomInfo').textContent =
     `✅ ${weekKey} 저장 완료 — 다음 생성 시 자동 반영`;
-  showToast('💾 저장됐어요! 다음 주 생성 시 중복 자동 제거');
+  showToast('💾 서버에 저장됐어요! 다음 주 생성 시 중복 자동 제거');
 }
 
 // ===== 중복 확인 =====
@@ -982,11 +1002,14 @@ function checkConflicts() {
 }
 
 // ===== 히스토리 보기 =====
-function showHistory() {
+async function showHistory() {
   const panel = document.getElementById('historyPanel');
   if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
 
-  const h = loadHistory();
+  document.getElementById('historyContent').innerHTML = '<p style="font-size:13px;color:var(--text-light)">불러오는 중...</p>';
+  panel.style.display = 'block';
+
+  const h = await loadHistory();
   let html = '';
 
   if (h.yusik.length) {
