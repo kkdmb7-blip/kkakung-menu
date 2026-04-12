@@ -451,13 +451,14 @@ async function recordThisWeek(weekKey, menuData) {
   else h.yusik.push({ weekKey, menus: yusikMenus });
   if (h.yusik.length > MAX_WEEKS) h.yusik = h.yusik.slice(-MAX_WEEKS);
 
+  // "주재료|서브" 콤보 단위로 저장 → 4주 안에 같은 조합 방지
   const usedHanwoo = [], usedChicken = [], usedP3 = [];
   menuData.forEach(day => {
     if (day.type === 'yushik') {
       day.menus.forEach(m => {
-        if (m.type === 'hanwoo') usedHanwoo.push(m.mainVeggie);
-        else if (m.type === 'chicken') usedChicken.push(m.mainVeggie);
-        else usedP3.push(m.mainProtein);
+        if (m.type === 'hanwoo') usedHanwoo.push(`${m.mainVeggie}|${m.subVeggie || ''}`);
+        else if (m.type === 'chicken') usedChicken.push(`${m.mainVeggie}|${m.subVeggie || ''}`);
+        else usedP3.push(`${m.mainProtein}|${m.subVeggie || ''}`);
       });
     }
   });
@@ -479,27 +480,32 @@ function pickExcluding(pool, exclude) {
 }
 
 function buildYushikMenu(dayIndex, usedThisWeek, prevWeek) {
-  // 한우
-  const hwExclude = [...usedThisWeek.hanwoo, ...prevWeek.hanwoo];
-  const hwMain = pickExcluding(HANWOO_MAIN_POOL, hwExclude);
+  // prevWeek.hanwoo/chicken/p3 = ["주재료|서브", ...] 형태의 4주 사용 콤보
+
+  function usedSubsFor(comboList, main) {
+    return comboList.filter(c => c.split('|')[0] === main).map(c => c.split('|')[1]);
+  }
+
+  // 한우 — 이번 주 내 주재료 중복 방지 (주간 겹침), 서브는 4주 콤보 기준
+  const hwMain = pickExcluding(HANWOO_MAIN_POOL, usedThisWeek.hanwoo);
   usedThisWeek.hanwoo.push(hwMain);
   const hwSubs = PAIRINGS.hanwoo[hwMain] || ['당근','쥬키니호박','감자'];
-  // 양파는 이미 재료에 고정 포함 → 제외
-  const hwSub = pickExcluding(hwSubs, ['양파']);
+  const hwUsedSubs = usedSubsFor(prevWeek.hanwoo, hwMain);
+  const hwSub = pickExcluding(hwSubs, ['양파', ...hwUsedSubs]);
 
-  // 닭 — hwSub와 중복 방지, 양파 제외
-  const ckExclude = [...usedThisWeek.chicken, ...prevWeek.chicken];
-  const ckMain = pickExcluding(CHICKEN_MAIN_POOL, ckExclude);
+  // 닭 — 이번 주 주재료 중복 방지, 서브는 4주 콤보 기준 + hwSub 겹침 방지
+  const ckMain = pickExcluding(CHICKEN_MAIN_POOL, usedThisWeek.chicken);
   usedThisWeek.chicken.push(ckMain);
   const ckSubs = PAIRINGS.chicken[ckMain] || ['당근','감자','쥬키니호박'];
-  const ckSub = pickExcluding(ckSubs, ['양파', hwSub]);
+  const ckUsedSubs = usedSubsFor(prevWeek.chicken, ckMain);
+  const ckSub = pickExcluding(ckSubs, ['양파', hwSub, ...ckUsedSubs]);
 
-  // 기타단백질 — hwSub/ckSub와 중복 방지, 당근·양파 제외(이미 고정)
-  const p3Exclude = [...usedThisWeek.p3, ...prevWeek.p3];
-  const p3Main = pickExcluding(P3_POOL, p3Exclude);
+  // 기타단백질 — 이번 주 주재료 중복 방지, 서브는 4주 콤보 기준 + 당일 서브 겹침 방지
+  const p3Main = pickExcluding(P3_POOL, usedThisWeek.p3);
   usedThisWeek.p3.push(p3Main);
   const p3Subs = PAIRINGS.protein3[p3Main] || ['쥬키니호박','감자','브로콜리'];
-  const p3Sub = pickExcluding(p3Subs, ['당근', '양파', hwSub, ckSub]);
+  const p3UsedSubs = usedSubsFor(prevWeek.p3, p3Main);
+  const p3Sub = pickExcluding(p3Subs, ['당근', '양파', hwSub, ckSub, ...p3UsedSubs]);
 
   return [
     {
@@ -507,21 +513,21 @@ function buildYushikMenu(dayIndex, usedThisWeek, prevWeek) {
       displayName: `한우 ${hwMain}`,
       ingredients: `한우, ${hwMain}, ${hwSub}, 양파, 한우육수, 채소상탕`,
       type: 'hanwoo',
-      mainVeggie: hwMain
+      mainVeggie: hwMain, subVeggie: hwSub
     },
     {
       name: `닭가슴살 ${ckMain} 죽/무른밥/진밥`,
       displayName: `닭가슴살 ${ckMain}`,
       ingredients: `닭가슴살, ${ckMain}, ${ckSub}, 양파, 닭육수, 채소상탕`,
       type: 'chicken',
-      mainVeggie: ckMain
+      mainVeggie: ckMain, subVeggie: ckSub
     },
     {
       name: `${p3Main} ${p3Sub} 죽/무른밥/진밥`,
       displayName: `${p3Main} ${p3Sub}`,
       ingredients: `${p3Main}, ${p3Sub}, 당근, 양파, 채소상탕`,
       type: 'other',
-      mainProtein: p3Main
+      mainProtein: p3Main, subVeggie: p3Sub
     }
   ];
 }
