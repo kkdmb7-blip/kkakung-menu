@@ -381,7 +381,7 @@ const P3_POOL = Object.keys(PAIRINGS.protein3);
 const SB_URL = 'https://ymghmfkqctckxxysxkvy.supabase.co';
 const SB_KEY = 'sb_publishable_3-9zobXqx6Nv36LzmNMBpA_fohZqA5x';
 const CACHE_KEY = 'kkakung_history_v2';
-const MAX_WEEKS = 5;
+const MAX_WEEKS = 4;
 
 async function loadHistory() {
   try {
@@ -425,8 +425,15 @@ async function getUsedYusikNames() {
 async function getPrevWeekVeggies() {
   const h = await loadHistory();
   if (!h.yushik_veggie.length) return { hanwoo: [], chicken: [], p3: [] };
-  const last = h.yushik_veggie[h.yushik_veggie.length - 1];
-  return { hanwoo: last.hanwoo || [], chicken: last.chicken || [], p3: last.p3 || [] };
+  // 최근 4주치 주재료 합산 → 같은 조합 4주 겹침 방지
+  const last4 = h.yushik_veggie.slice(-4);
+  const hanwoo = [], chicken = [], p3 = [];
+  last4.forEach(w => {
+    (w.hanwoo || []).forEach(v => hanwoo.push(v));
+    (w.chicken || []).forEach(v => chicken.push(v));
+    (w.p3 || []).forEach(v => p3.push(v));
+  });
+  return { hanwoo, chicken, p3 };
 }
 
 async function recordThisWeek(weekKey, menuData) {
