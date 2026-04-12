@@ -780,13 +780,15 @@ function initChipEditor(ingredStr) {
   editChips = (ingredStr || '').split(',').map(s => s.trim()).filter(Boolean);
   selectedChipIdx = -1;
   chipTypingIdx = -1;
+  addingMode = false;
   renderChipEditor();
   document.getElementById('chipPicker').className = 'chip-picker';
 }
 
 function renderChipEditor() {
   const area = document.getElementById('chipEditorArea');
-  const addBtn = `<span class="ingred-chip" onclick="addChip()" style="opacity:0.5;font-size:13px;padding:4px 10px" title="재료 추가">+</span>`;
+  const addingActive = addingMode ? ';background:var(--primary);color:white;opacity:1' : '';
+  const addBtn = `<span class="ingred-chip" onclick="addChip()" style="opacity:0.6;font-size:12px;padding:4px 12px${addingActive}">추가</span>`;
   area.innerHTML = editChips.map((chip, i) => {
     if (i === chipTypingIdx) {
       const w = Math.max(44, chip.length * 13);
@@ -887,10 +889,51 @@ function showChipPicker(idx) {
   picker.className = 'chip-picker active';
 }
 
+let addingMode = false;
+
 function addChip() {
-  editChips.push('새재료');
+  if (addingMode) { // 다시 누르면 취소
+    addingMode = false;
+    renderChipEditor();
+    document.getElementById('chipPicker').className = 'chip-picker';
+    return;
+  }
+  addingMode = true;
   selectedChipIdx = -1;
-  chipTypingIdx = editChips.length - 1; // 바로 타이핑 모드
+  chipTypingIdx = -1;
+  renderChipEditor();
+  showAddPicker();
+}
+
+function showAddPicker() {
+  const picker = document.getElementById('chipPicker');
+  const mtype = editTarget?.menuType;
+  const etype = editTarget?.type;
+  const used = new Set(editChips);
+
+  let options = [];
+  if (etype === 'yusik' || etype === 'soup') {
+    const all = new Set();
+    YUSIK_MAIN.forEach(m => m.ingredients.split(',').forEach(i => all.add(i.trim())));
+    YUSIK_SOUP.forEach(s => s.ingredients.split(',').forEach(i => all.add(i.trim())));
+    options = [...all].filter(o => o && !used.has(o));
+  } else {
+    const pg = mtype === 'hanwoo' ? PAIRINGS.hanwoo : mtype === 'chicken' ? PAIRINGS.chicken : PAIRINGS.protein3;
+    const all = new Set(['양파','당근','감자','쥬키니호박','브로콜리','두부','한우육수','닭육수','채소상탕']);
+    Object.values(pg).forEach(subs => subs.forEach(s => all.add(s)));
+    options = [...all].filter(o => !used.has(o));
+  }
+
+  const cc = mtype === 'hanwoo' ? 'hanwoo-chip' : mtype === 'chicken' ? 'chicken-chip' : 'other-chip';
+  picker.innerHTML = `<span class="chip-picker-label">추가할 재료 선택:</span>` +
+    options.map(o => `<span class="suggestion-chip ${cc}" onclick="addFromPicker('${o.replace(/'/g,"\\'")}')">${o}</span>`).join('');
+  picker.className = 'chip-picker active';
+}
+
+function addFromPicker(val) {
+  editChips.push(val);
+  addingMode = false;
+  selectedChipIdx = -1;
   renderChipEditor();
   document.getElementById('chipPicker').className = 'chip-picker';
 }
