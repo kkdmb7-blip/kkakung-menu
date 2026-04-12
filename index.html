@@ -87,6 +87,30 @@ header {
 .suggestion-chip.chicken-chip:hover { background: var(--secondary); color: white; }
 .suggestion-chip.other-chip { background: #F0EEFF; color: #8B6FE8; border-color: #d4c8f8; }
 .suggestion-chip.other-chip:hover { background: #8B6FE8; color: white; }
+/* 재료 칩 에디터 */
+.chip-editor {
+  min-height: 44px; border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  transition: border-color 0.2s; cursor: default;
+}
+.chip-editor.has-selection { border-color: var(--primary); }
+.ingred-chip {
+  padding: 5px 12px; border-radius: 50px; font-size: 12px; font-weight: 500;
+  cursor: pointer; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); transition: all 0.15s; user-select: none;
+}
+.ingred-chip:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.ingred-chip.selected { background: var(--primary); color: white; border-color: var(--primary); }
+.chip-text-input {
+  border: none; outline: none; font-family: 'Noto Sans KR', sans-serif;
+  font-size: 12px; background: transparent; padding: 0 4px; color: white; min-width: 40px;
+}
+.chip-picker {
+  display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding: 10px 12px;
+  background: var(--bg); border-radius: 10px; border: 1px solid var(--border);
+}
+.chip-picker.active { display: flex; }
+.chip-picker-label { font-size: 11px; color: var(--text-light); width: 100%; margin-bottom: 2px; }
 .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 -4px 20px rgba(0,0,0,0.06); }
 .bottom-bar-info { font-size: 13px; color: var(--text-light); }
@@ -186,8 +210,10 @@ pb { padding-bottom: 100px; display: block; }
       <input type="text" id="editName" placeholder="예: 한우 브로콜리 죽">
     </div>
     <div class="modal-section">
-      <label>재료</label>
-      <textarea id="editIngredients" placeholder="예: 한우, 브로콜리, 쥬키니호박, 양파, 한우육수, 채소상탕"></textarea>
+      <label>재료 <span style="font-size:11px;color:var(--text-light);font-weight:400;text-transform:none;letter-spacing:0">누르면 선택 · 다시 누르면 직접입력</span></label>
+      <div class="chip-editor" id="chipEditorArea"></div>
+      <div class="chip-picker" id="chipPicker"></div>
+      <textarea id="editIngredients" style="display:none"></textarea>
     </div>
     <div class="modal-section">
       <label>원산지</label>
@@ -656,72 +682,162 @@ function renderDay(day, di) {
 
 // ===== 편집 =====
 function openEdit(di, mi) {
-  editTarget = { type: 'menu', di, mi };
   const menu = currentMenu[di].menus[mi];
+  editTarget = { type: 'menu', di, mi, menuType: menu.type };
   document.getElementById('editName').value = menu.displayName || menu.name;
-  document.getElementById('editIngredients').value = menu.ingredients;
   document.getElementById('editOrigin').value = '';
-  showIngredientSuggestions(menu.type);
+  initChipEditor(menu.ingredients);
+  document.getElementById('suggestionsSection').style.display = 'none';
   document.getElementById('editModal').classList.add('active');
 }
 
 function openEditYusik(di, ii) {
-  editTarget = { type: 'yusik', di, ii };
+  editTarget = { type: 'yusik', di, ii, menuType: 'other' };
   const item = currentMenu[di].items[ii];
   document.getElementById('editName').value = item.name;
-  document.getElementById('editIngredients').value = item.ingredients;
   document.getElementById('editOrigin').value = item.origin || '';
-  const list = document.getElementById('suggestionsList');
-  list.innerHTML = YUSIK_MAIN.map(m =>
-    `<span class="suggestion-chip other-chip" onclick="applyYusikSuggestion('${m.name}','${m.ingredients}')">${m.name}</span>`
+  initChipEditor(item.ingredients);
+  document.getElementById('suggestionsSection').style.display = '';
+  document.getElementById('suggestionsList').innerHTML = YUSIK_MAIN.map(m =>
+    `<span class="suggestion-chip other-chip" onclick="applyYusikSuggestion('${m.name}','${m.ingredients.replace(/'/g,"\\'")}')">${m.name}</span>`
   ).join('');
   document.getElementById('editModal').classList.add('active');
 }
 
 function openEditSoup(di) {
-  editTarget = { type: 'soup', di };
+  editTarget = { type: 'soup', di, menuType: 'chicken' };
   const soup = currentMenu[di].soup;
   document.getElementById('editName').value = soup.name;
-  document.getElementById('editIngredients').value = soup.ingredients;
   document.getElementById('editOrigin').value = soup.origin || '';
-  const list = document.getElementById('suggestionsList');
-  list.innerHTML = YUSIK_SOUP.map(s =>
-    `<span class="suggestion-chip chicken-chip" onclick="applySoupSuggestion('${s.name}','${s.ingredients}')">${s.name}</span>`
+  initChipEditor(soup.ingredients);
+  document.getElementById('suggestionsSection').style.display = '';
+  document.getElementById('suggestionsList').innerHTML = YUSIK_SOUP.map(s =>
+    `<span class="suggestion-chip chicken-chip" onclick="applySoupSuggestion('${s.name}','${s.ingredients.replace(/'/g,"\\'")}')">${s.name}</span>`
   ).join('');
   document.getElementById('editModal').classList.add('active');
 }
 
-function showIngredientSuggestions(type) {
-  const list = document.getElementById('suggestionsList');
-  const pool = type === 'hanwoo' ? HANWOO_MAIN_POOL : type === 'chicken' ? CHICKEN_MAIN_POOL : P3_POOL;
-  const chipClass = type === 'hanwoo' ? 'hanwoo-chip' : type === 'chicken' ? 'chicken-chip' : 'other-chip';
-  list.innerHTML = pool.map(v =>
-    `<span class="suggestion-chip ${chipClass}" onclick="applyMainIngredient('${v}','${type}')">${v}</span>`
-  ).join('');
+// ===== 칩 에디터 =====
+let editChips = [];
+let selectedChipIdx = -1;
+let chipTypingIdx = -1;
+
+function initChipEditor(ingredStr) {
+  editChips = (ingredStr || '').split(',').map(s => s.trim()).filter(Boolean);
+  selectedChipIdx = -1;
+  chipTypingIdx = -1;
+  renderChipEditor();
+  document.getElementById('chipPicker').className = 'chip-picker';
 }
 
-function applyMainIngredient(main, type) {
-  const pairings = PAIRINGS[type === 'hanwoo' ? 'hanwoo' : type === 'chicken' ? 'chicken' : 'protein3'];
-  const subs = pairings[main] || ['당근','쥬키니호박','감자'];
-  const sub = subs[Math.floor(Math.random() * subs.length)];
-  const base = type === 'hanwoo' ? '한우' : type === 'chicken' ? '닭가슴살' : main;
-  const broth = type === 'hanwoo' ? '한우육수' : type === 'chicken' ? '닭육수' : '채소상탕';
-  if (type !== 'other') {
-    document.getElementById('editName').value = `${base} ${main}`;
-    document.getElementById('editIngredients').value = `${base}, ${main}, ${sub}, 양파, ${broth}, 채소상탕`;
+function renderChipEditor() {
+  const area = document.getElementById('chipEditorArea');
+  area.innerHTML = editChips.map((chip, i) => {
+    if (i === chipTypingIdx) {
+      const w = Math.max(44, chip.length * 13);
+      return `<span class="ingred-chip selected" style="padding:3px 8px">` +
+        `<input class="chip-text-input" id="cti" value="${chip.replace(/"/g,'&quot;')}" ` +
+        `onblur="finalizeChipTyping(${i})" ` +
+        `onkeydown="if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();finalizeChipTyping(${i})}" ` +
+        `style="width:${w}px"></span>`;
+    }
+    const sel = i === selectedChipIdx ? ' selected' : '';
+    return `<span class="ingred-chip${sel}" onclick="onChipClick(${i})">${chip}</span>`;
+  }).join('');
+  area.classList.toggle('has-selection', selectedChipIdx >= 0 || chipTypingIdx >= 0);
+  syncChipsToTextarea();
+  if (chipTypingIdx >= 0) setTimeout(() => { const el = document.getElementById('cti'); if (el){el.focus();el.select();} }, 0);
+}
+
+function onChipClick(idx) {
+  if (chipTypingIdx === idx) return;
+  if (selectedChipIdx === idx) {
+    // 이미 선택된 칩 다시 클릭 → 직접입력
+    chipTypingIdx = idx;
+    renderChipEditor();
+    document.getElementById('chipPicker').className = 'chip-picker';
   } else {
-    document.getElementById('editName').value = `${main} ${sub}`;
-    document.getElementById('editIngredients').value = `${main}, ${sub}, 당근, 양파, 채소상탕`;
+    chipTypingIdx = -1;
+    selectedChipIdx = idx;
+    renderChipEditor();
+    showChipPicker(idx);
   }
+}
+
+function finalizeChipTyping(idx) {
+  const el = document.getElementById('cti');
+  if (el && el.value.trim()) editChips[idx] = el.value.trim();
+  chipTypingIdx = -1;
+  selectedChipIdx = -1;
+  renderChipEditor();
+  document.getElementById('chipPicker').className = 'chip-picker';
+}
+
+function replaceChip(idx, newVal) {
+  editChips[idx] = newVal;
+  // 주재료(idx=1) 변경 시 이름·서브재료도 자동 업데이트
+  if (editTarget?.type === 'menu' && idx === 1) {
+    const mtype = editTarget.menuType;
+    const base = mtype === 'hanwoo' ? '한우' : mtype === 'chicken' ? '닭가슴살' : '';
+    if (base) document.getElementById('editName').value = `${base} ${newVal}`;
+    const pgroup = mtype === 'hanwoo' ? PAIRINGS.hanwoo : mtype === 'chicken' ? PAIRINGS.chicken : PAIRINGS.protein3;
+    const subs = pgroup[newVal];
+    if (subs && editChips.length > 2) {
+      editChips[2] = subs[Math.floor(Math.random() * subs.length)];
+    }
+  }
+  selectedChipIdx = -1;
+  chipTypingIdx = -1;
+  renderChipEditor();
+  document.getElementById('chipPicker').className = 'chip-picker';
+}
+
+function showChipPicker(idx) {
+  const picker = document.getElementById('chipPicker');
+  const mtype = editTarget?.menuType;
+  const etype = editTarget?.type;
+  const current = editChips[idx];
+  let options = [];
+
+  if (etype === 'menu') {
+    if (idx === 1) {
+      options = mtype === 'hanwoo' ? HANWOO_MAIN_POOL : mtype === 'chicken' ? CHICKEN_MAIN_POOL : P3_POOL;
+    } else {
+      const pg = mtype === 'hanwoo' ? PAIRINGS.hanwoo : mtype === 'chicken' ? PAIRINGS.chicken : PAIRINGS.protein3;
+      const all = new Set(['양파','당근','감자','쥬키니호박','브로콜리','두부','한우육수','닭육수','채소상탕']);
+      Object.values(pg).forEach(subs => subs.forEach(s => all.add(s)));
+      options = [...all];
+    }
+  } else if (etype === 'yusik') {
+    const all = new Set();
+    YUSIK_MAIN.forEach(m => m.ingredients.split(',').forEach(i => all.add(i.trim())));
+    options = [...all];
+  } else if (etype === 'soup') {
+    const all = new Set();
+    YUSIK_SOUP.forEach(s => s.ingredients.split(',').forEach(i => all.add(i.trim())));
+    options = [...all];
+  }
+
+  options = options.filter(o => o && o !== current);
+  if (!options.length) { picker.className = 'chip-picker'; return; }
+
+  const cc = mtype === 'hanwoo' ? 'hanwoo-chip' : mtype === 'chicken' ? 'chicken-chip' : 'other-chip';
+  picker.innerHTML = `<span class="chip-picker-label">"${current}" 대체 선택:</span>` +
+    options.map(o => `<span class="suggestion-chip ${cc}" onclick="replaceChip(${idx},'${o.replace(/'/g,"\\'")}')">${o}</span>`).join('');
+  picker.className = 'chip-picker active';
+}
+
+function syncChipsToTextarea() {
+  document.getElementById('editIngredients').value = editChips.join(', ');
 }
 
 function applyYusikSuggestion(name, ingredients) {
   document.getElementById('editName').value = name;
-  document.getElementById('editIngredients').value = ingredients;
+  initChipEditor(ingredients);
 }
 function applySoupSuggestion(name, ingredients) {
   document.getElementById('editName').value = name;
-  document.getElementById('editIngredients').value = ingredients;
+  initChipEditor(ingredients);
 }
 
 function saveEdit() {
