@@ -611,8 +611,29 @@ async function generateMenu() {
     `${formatKorDate(monday)} ~ ${formatKorDate(new Date(monday.getTime() + 4*86400000))} 메뉴 (미저장)`;
 }
 
+const CUR_KEY = 'kkakung_current_menu';
+
+function persistCurrent() {
+  if (!currentMenu) return;
+  const weekStart = document.getElementById('weekStart').value;
+  localStorage.setItem(CUR_KEY, JSON.stringify({ weekStart, menu: currentMenu }));
+}
+
+function restoreCurrent() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CUR_KEY));
+    if (!saved || !saved.menu) return;
+    saved.menu.forEach(day => { day.date = new Date(day.date); });
+    currentMenu = saved.menu;
+    document.getElementById('weekStart').value = saved.weekStart;
+    updateWeekDates();
+    renderMenu();
+  } catch(e) {}
+}
+
 function renderMenu() {
   if (!currentMenu) return;
+  persistCurrent();
   const container = document.getElementById('menuContainer');
   container.innerHTML = '<div class="days-grid">' + currentMenu.map((day, di) => renderDay(day, di)).join('') + '</div>';
 }
@@ -1186,6 +1207,7 @@ document.addEventListener('click', e => {
 });
 
 initDatePicker();
+restoreCurrent();
 </script>
 </body>
 </html>
