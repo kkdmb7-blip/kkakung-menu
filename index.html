@@ -400,22 +400,23 @@ function buildYushikMenu(dayIndex, usedThisWeek, prevWeek) {
   const hwExclude = [...usedThisWeek.hanwoo, ...prevWeek.hanwoo];
   const hwMain = pickExcluding(HANWOO_MAIN_POOL, hwExclude);
   usedThisWeek.hanwoo.push(hwMain);
-  const hwSubs = PAIRINGS.hanwoo[hwMain] || ['당근','쥬키니호박','양파','감자'];
-  const hwSub = hwSubs[Math.floor(Math.random() * hwSubs.length)];
+  const hwSubs = PAIRINGS.hanwoo[hwMain] || ['당근','쥬키니호박','감자'];
+  // 양파는 이미 재료에 고정 포함 → 제외
+  const hwSub = pickExcluding(hwSubs, ['양파']);
 
-  // 닭
+  // 닭 — hwSub와 중복 방지, 양파 제외
   const ckExclude = [...usedThisWeek.chicken, ...prevWeek.chicken];
   const ckMain = pickExcluding(CHICKEN_MAIN_POOL, ckExclude);
   usedThisWeek.chicken.push(ckMain);
-  const ckSubs = PAIRINGS.chicken[ckMain] || ['당근','감자','쥬키니호박','양파'];
-  const ckSub = ckSubs[Math.floor(Math.random() * ckSubs.length)];
+  const ckSubs = PAIRINGS.chicken[ckMain] || ['당근','감자','쥬키니호박'];
+  const ckSub = pickExcluding(ckSubs, ['양파', hwSub]);
 
-  // 기타단백질
+  // 기타단백질 — hwSub/ckSub와 중복 방지, 당근·양파 제외(이미 고정)
   const p3Exclude = [...usedThisWeek.p3, ...prevWeek.p3];
   const p3Main = pickExcluding(P3_POOL, p3Exclude);
   usedThisWeek.p3.push(p3Main);
-  const p3Subs = PAIRINGS.protein3[p3Main] || ['당근','쥬키니호박','감자','양파'];
-  const p3Sub = p3Subs[Math.floor(Math.random() * p3Subs.length)];
+  const p3Subs = PAIRINGS.protein3[p3Main] || ['쥬키니호박','감자','브로콜리'];
+  const p3Sub = pickExcluding(p3Subs, ['당근', '양파', hwSub, ckSub]);
 
   return [
     {
