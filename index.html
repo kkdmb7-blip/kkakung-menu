@@ -885,7 +885,18 @@ function saveEdit() {
     const menu = currentMenu[di].menus[mi];
     menu.displayName = name;
     menu.name = name.includes('죽') ? name : name + ' 죽/무른밥/진밥';
-    if (ingredients) menu.ingredients = ingredients;
+    if (ingredients) {
+      menu.ingredients = ingredients;
+      // 수정된 재료에서 mainVeggie/subVeggie 갱신 → 저장 시 정확한 콤보 기록
+      const parts = ingredients.split(',').map(s => s.trim());
+      if (menu.type === 'hanwoo' || menu.type === 'chicken') {
+        menu.mainVeggie = parts[1] || menu.mainVeggie;
+        menu.subVeggie  = parts[2] || menu.subVeggie;
+      } else {
+        menu.mainProtein = parts[0] || menu.mainProtein;
+        menu.subVeggie   = parts[1] || menu.subVeggie;
+      }
+    }
   } else if (editTarget.type === 'yusik') {
     const { di, ii } = editTarget;
     currentMenu[di].items[ii].name = name;
