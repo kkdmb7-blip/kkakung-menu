@@ -552,6 +552,26 @@ async function recordThisWeek(weekKey, menuData) {
 // ===== 메뉴 생성 로직 =====
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 
+// 이유식 재료 표준 순서 — 단백질 → 야채 → 육수 → 양파 → 채소상탕
+function normalizeYushikIngredients(str, type) {
+  const items = (str || '').split(',').map(s => s.trim()).filter(Boolean);
+  const proteins = type === 'hanwoo' ? ['한우'] : type === 'chicken' ? ['닭가슴살','닭고기'] : [];
+  const broth = type === 'hanwoo' ? '한우육수' : type === 'chicken' ? '닭육수' : '';
+  const fixedTail = [broth, '양파', '채소상탕'].filter(Boolean);
+  const seen = new Set();
+  const protein = [], veggie = [];
+  for (const x of items) {
+    if (!x || seen.has(x)) continue;
+    seen.add(x);
+    if (proteins.includes(x)) protein.push(x);
+    else if (fixedTail.includes(x)) continue; // tail에서 합침
+    else veggie.push(x);
+  }
+  // 단백질 누락 보완 (한우/닭 type만)
+  if (proteins.length && !protein.length) protein.push(proteins[0]);
+  return [...protein, ...veggie, ...fixedTail].join(', ');
+}
+
 function pickExcluding(pool, exclude) {
   const filtered = pool.filter(x => !exclude.includes(x));
   if (filtered.length === 0) return pool[Math.floor(Math.random() * pool.length)]; // 부득이하게
@@ -702,6 +722,16 @@ function restoreCurrent() {
   try {
     const saved = JSON.parse(localStorage.getItem(CUR_KEY));
     if (!saved || !saved.menu) return;
+    // 이번 주 월요일보다 오래된 저장은 자동 폐기 (지난 주차 잔여 표시 방지)
+    const today = new Date();
+    const todayDow = today.getDay(); // 0=일, 1=월
+    const daysToMon = todayDow === 0 ? -6 : 1 - todayDow;
+    const thisMon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + daysToMon);
+    const thisMonStr = thisMon.toISOString().slice(0, 10);
+    if (saved.weekStart && saved.weekStart < thisMonStr) {
+      localStorage.removeItem(CUR_KEY);
+      return;
+    }
     saved.menu.forEach(day => { day.date = new Date(day.date); });
     currentMenu = saved.menu;
     document.getElementById('weekStart').value = saved.weekStart;
@@ -789,7 +819,7 @@ function renderDay(day, di) {
             ${menu.displayName || menu.name}
             <span class="category-tag ${tagClass}">${tagLabel}</span>
           </div>
-          <div class="menu-ingredients">${highlightIngreds(menu.ingredients)}</div>
+          <div class="menu-ingredients">${highlightIngreds(normalizeYushikIngredients(menu.ingredients, menu.type))}</div>
         </div>
         <div class="menu-actions">
           <button class="action-btn edit" onclick="openEdit(${di},${mi})">✏️</button>
@@ -1264,17 +1294,15 @@ function renderSelectedWeek() {
   html += '</div>';
 
   // 이유식 메뉴 — 주재료 콤보를 메뉴 이름으로 재구성해서 카드로 표시
-  // 콤보 형식: "주재료|서브" (예: "양파|한우육수"). 중복 항목 dedupe.
-  const dedupJoin = arr => {
-    const seen = new Set(); const out = [];
-    arr.forEach(x => { if (x && !seen.has(x)) { seen.add(x); out.push(x); } });
-    return out.join(', ');
-  };
   const buildYushikMenu = (combo, type) => {
     const [main, sub] = (combo || '').split('|');
-    if (type === 'hanwoo')  return { name: `한우 ${main||''}`.trim(), ingredients: dedupJoin(['한우', main, sub, '한우육수', '양파', '채소상탕']) };
-    if (type === 'chicken') return { name: `닭가슴살 ${main||''}`.trim(), ingredients: dedupJoin(['닭가슴살', main, sub, '닭육수', '양파', '채소상탕']) };
-    return { name: `${main||''}${sub?' '+sub:''}`.trim(), ingredients: dedupJoin([main, sub, '당근', '양파', '채소상탕']) };
+    const raw = type === 'hanwoo'  ? ['한우', main, sub, '한우육수', '양파', '채소상탕'].filter(Boolean).join(', ')
+              : type === 'chicken' ? ['닭가슴살', main, sub, '닭육수', '양파', '채소상탕'].filter(Boolean).join(', ')
+              :                       [main, sub, '당근', '양파', '채소상탕'].filter(Boolean).join(', ');
+    const name = type === 'hanwoo'  ? `한우 ${main||''}`.trim()
+               : type === 'chicken' ? `닭가슴살 ${main||''}`.trim()
+               :                      `${main||''}${sub?' '+sub:''}`.trim();
+    return { name, ingredients: normalizeYushikIngredients(raw, type) };
   };
   const yushikMenus = [];
   (veg.hanwoo || []).forEach(c => yushikMenus.push({ ...buildYushikMenu(c, 'hanwoo'), label: '한우' }));
