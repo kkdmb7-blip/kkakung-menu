@@ -1264,12 +1264,17 @@ function renderSelectedWeek() {
   html += '</div>';
 
   // 이유식 메뉴 — 주재료 콤보를 메뉴 이름으로 재구성해서 카드로 표시
-  // 콤보 형식: "주재료|서브" (예: "양파|한우육수")
+  // 콤보 형식: "주재료|서브" (예: "양파|한우육수"). 중복 항목 dedupe.
+  const dedupJoin = arr => {
+    const seen = new Set(); const out = [];
+    arr.forEach(x => { if (x && !seen.has(x)) { seen.add(x); out.push(x); } });
+    return out.join(', ');
+  };
   const buildYushikMenu = (combo, type) => {
-    const [main, sub] = combo.split('|');
-    if (type === 'hanwoo')  return { name: `한우 ${main}`, ingredients: `한우, ${main}${sub?', '+sub:''}, 한우육수, 양파, 채소상탕` };
-    if (type === 'chicken') return { name: `닭가슴살 ${main}`, ingredients: `닭가슴살, ${main}${sub?', '+sub:''}, 닭육수, 양파, 채소상탕` };
-    return { name: `${main}${sub?' '+sub:''}`, ingredients: `${main}${sub?', '+sub:''}, 당근, 양파, 채소상탕` };
+    const [main, sub] = (combo || '').split('|');
+    if (type === 'hanwoo')  return { name: `한우 ${main||''}`.trim(), ingredients: dedupJoin(['한우', main, sub, '한우육수', '양파', '채소상탕']) };
+    if (type === 'chicken') return { name: `닭가슴살 ${main||''}`.trim(), ingredients: dedupJoin(['닭가슴살', main, sub, '닭육수', '양파', '채소상탕']) };
+    return { name: `${main||''}${sub?' '+sub:''}`.trim(), ingredients: dedupJoin([main, sub, '당근', '양파', '채소상탕']) };
   };
   const yushikMenus = [];
   (veg.hanwoo || []).forEach(c => yushikMenus.push({ ...buildYushikMenu(c, 'hanwoo'), label: '한우' }));
