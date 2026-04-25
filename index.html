@@ -590,14 +590,14 @@ function buildYushikMenu(dayIndex, usedThisWeek, prevWeek) {
     {
       name: `한우 ${hwMain} 죽/무른밥/진밥`,
       displayName: `한우 ${hwMain}`,
-      ingredients: `한우, ${hwMain}, ${hwSub}, 양파, 한우육수, 채소상탕`,
+      ingredients: `한우, ${hwMain}, ${hwSub}, 한우육수, 양파, 채소상탕`,
       type: 'hanwoo',
       mainVeggie: hwMain, subVeggie: hwSub
     },
     {
       name: `닭가슴살 ${ckMain} 죽/무른밥/진밥`,
       displayName: `닭가슴살 ${ckMain}`,
-      ingredients: `닭가슴살, ${ckMain}, ${ckSub}, 양파, 닭육수, 채소상탕`,
+      ingredients: `닭가슴살, ${ckMain}, ${ckSub}, 닭육수, 양파, 채소상탕`,
       type: 'chicken',
       mainVeggie: ckMain, subVeggie: ckSub
     },
@@ -1267,8 +1267,8 @@ function renderSelectedWeek() {
   // 콤보 형식: "주재료|서브" (예: "양파|한우육수")
   const buildYushikMenu = (combo, type) => {
     const [main, sub] = combo.split('|');
-    if (type === 'hanwoo')  return { name: `한우 ${main}`, ingredients: `한우, ${main}${sub?', '+sub:''}, 양파, 한우육수, 채소상탕` };
-    if (type === 'chicken') return { name: `닭가슴살 ${main}`, ingredients: `닭가슴살, ${main}${sub?', '+sub:''}, 양파, 닭육수, 채소상탕` };
+    if (type === 'hanwoo')  return { name: `한우 ${main}`, ingredients: `한우, ${main}${sub?', '+sub:''}, 한우육수, 양파, 채소상탕` };
+    if (type === 'chicken') return { name: `닭가슴살 ${main}`, ingredients: `닭가슴살, ${main}${sub?', '+sub:''}, 닭육수, 양파, 채소상탕` };
     return { name: `${main}${sub?' '+sub:''}`, ingredients: `${main}${sub?', '+sub:''}, 당근, 양파, 채소상탕` };
   };
   const yushikMenus = [];
