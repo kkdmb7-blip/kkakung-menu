@@ -1185,9 +1185,16 @@ function checkConflicts() {
 }
 
 // ===== 히스토리 보기 =====
-async function showHistory() {
+function fmtWeekLabel(weekKey) {
+  // YYYY-MM-DD → "MM/DD 주차"
+  const m = weekKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return weekKey;
+  return `${m[2]}/${m[3]} 주`;
+}
+
+async function showHistory(forceOpen) {
   const panel = document.getElementById('historyPanel');
-  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  if (!forceOpen && panel.style.display !== 'none') { panel.style.display = 'none'; return; }
 
   document.getElementById('historyContent').innerHTML = '<p style="font-size:13px;color:var(--text-light)">불러오는 중...</p>';
   panel.style.display = 'block';
@@ -1195,24 +1202,40 @@ async function showHistory() {
   const h = await loadHistory();
   let html = '';
 
-  if (h.yusik.length) {
-    html += '<div style="margin-bottom:16px"><strong style="font-size:13px">유아식 반찬 (최근 5주)</strong><div class="history-tags" style="margin-top:8px">';
-    h.yusik.forEach((w, wi) => {
-      const cls = `week${h.yusik.length - wi}`;
-      w.menus.forEach(m => {
-        html += `<span class="history-tag ${cls}" title="${w.weekKey}">${m.name}</span>`;
-      });
-    });
-    html += '</div></div>';
+  if (h._loadFailed) {
+    html = '<p style="font-size:13px;color:#c44">⚠️ 서버 연결 실패. 잠시 후 다시 시도해주세요.</p>';
+    document.getElementById('historyContent').innerHTML = html;
+    return;
   }
 
-  if (h.yushik_veggie.length) {
-    html += '<div><strong style="font-size:13px">이유식 주재료 (최근 사용)</strong><div class="history-tags" style="margin-top:8px">';
-    const last = h.yushik_veggie[h.yushik_veggie.length - 1];
-    [...(last.hanwoo||[]), ...(last.chicken||[]), ...(last.p3||[])].forEach(v => {
-      html += `<span class="history-tag week1">${v}</span>`;
+  if (h.yusik.length) {
+    // 주차별 분리해서 표시 (최신부터)
+    const sorted = [...h.yusik].reverse();
+    sorted.forEach((w, wi) => {
+      const veg = h.yushik_veggie.find(x => x.weekKey === w.weekKey) || {hanwoo:[],chicken:[],p3:[]};
+      const cls = `week${Math.min(wi+1, 5)}`;
+      const isThisWeek = wi === 0;
+      html += `<div style="margin-bottom:14px;padding:12px;border:1px solid var(--border);border-radius:10px;background:${isThisWeek?'rgba(139,170,124,0.06)':'white'}">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">`;
+      html += `<strong style="font-size:13px">${fmtWeekLabel(w.weekKey)}${isThisWeek?' <span style="font-size:10px;color:var(--primary);font-weight:600">· 이번 주</span>':''}</strong>`;
+      html += `<span style="font-size:11px;color:var(--text-light)">${w.weekKey}</span>`;
+      html += `</div>`;
+      html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:6px">유아식 반찬 (${w.menus.length})</div>`;
+      html += '<div class="history-tags" style="margin-bottom:8px">';
+      w.menus.forEach(m => {
+        const ingTip = m.ingredients ? ` (${m.ingredients})` : '';
+        html += `<span class="history-tag ${cls}" title="${m.name}${ingTip}">${m.name}</span>`;
+      });
+      html += '</div>';
+      const allVeg = [...(veg.hanwoo||[]), ...(veg.chicken||[]), ...(veg.p3||[])];
+      if (allVeg.length) {
+        html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:6px">이유식 주재료 (${allVeg.length})</div>`;
+        html += '<div class="history-tags">';
+        allVeg.forEach(v => { html += `<span class="history-tag ${cls}">${v}</span>`; });
+        html += '</div>';
+      }
+      html += '</div>';
     });
-    html += '</div></div>';
   }
 
   if (!html) html = '<p style="font-size:13px;color:var(--text-light)">아직 저장된 기록이 없어요. 메뉴 생성 후 저장해주세요.</p>';
@@ -1220,6 +1243,11 @@ async function showHistory() {
   document.getElementById('historyContent').innerHTML = html;
   panel.style.display = 'block';
 }
+
+// 페이지 로드 시 히스토리 자동 표시 (지난 메뉴 항상 보이게)
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => showHistory(true), 200);
+});
 
 function printMenu() { window.print(); }
 
