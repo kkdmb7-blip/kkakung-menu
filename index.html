@@ -178,13 +178,14 @@ pb { padding-bottom: 100px; display: block; }
   </div>
 
   <div id="historyPanel" style="display:none" class="history-panel">
-    <h4>📚 지난 주차 메뉴 보기</h4>
+    <h4>📚 지난 주차 메뉴 — 비교 보기</h4>
     <div id="historyControls" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
       <select id="historyWeekSelect" style="flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:white;font-family:inherit;">
         <option value="">불러오는 중...</option>
       </select>
       <button class="btn btn-primary" id="historyConfirmBtn" onclick="renderSelectedWeek()" style="padding:9px 18px;">확인</button>
     </div>
+    <div style="font-size:11px;color:var(--text-light);margin-bottom:10px;line-height:1.6">⬇️ 선택한 주차는 위에 표시되고, 이번 주 작업 메뉴는 그대로 아래에 유지됩니다 — 동시에 비교하면서 새 메뉴 만들 수 있어요</div>
     <div id="historyContent" style="font-size:13px;color:var(--text-light);">주차를 선택해주세요</div>
   </div>
 
@@ -1246,53 +1247,42 @@ function renderSelectedWeek() {
   const idx = sorted.findIndex(x => x.weekKey === wk);
   const cls = `week${Math.min(idx + 1, 5)}`;
 
-  // 패널 안에는 간단 요약만
-  document.getElementById('historyContent').innerHTML = `<p style="font-size:13px;color:var(--text-light)">아래 메인 영역에 <strong>${fmtWeekLabel(wk)}</strong> 메뉴를 표시 중입니다.</p>`;
-
-  // 메인 영역(menuContainer)에 선택 주차 read-only 표시
-  let html = `<div style="background:rgba(139,170,124,0.06);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;">`;
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">`;
-  html += `<strong style="font-size:15px">📖 ${fmtWeekLabel(wk)} <span style="font-size:11px;color:var(--text-light);font-weight:400">· ${wk}</span></strong>`;
-  html += `<button class="btn btn-ghost" onclick="exitHistoryView()" style="padding:6px 14px;font-size:12px">↩️ 이번 주 작업으로</button>`;
+  // 패널(historyContent)에 선택 주차 read-only 카드 표시 — menuContainer는 그대로 유지(이번 주 작업)
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">`;
+  html += `<strong style="font-size:14px">📖 ${fmtWeekLabel(wk)} <span style="font-size:11px;color:var(--text-light);font-weight:400">· ${wk}</span></strong>`;
+  html += `<button class="btn btn-ghost" onclick="document.getElementById('historyContent').innerHTML='<p style=\\'color:var(--text-light)\\'>주차를 선택하고 [확인]을 눌러주세요</p>';document.getElementById('historyWeekSelect').value='';" style="padding:5px 12px;font-size:11px">✕ 닫기</button>`;
   html += `</div>`;
 
-  html += `<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text)">🍲 유아식 반찬 <span style="color:var(--text-light);font-weight:400">(${w.menus.length}개)</span></div>`;
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:16px">';
+  html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🍲 유아식 반찬 <span style="color:var(--text-light);font-weight:400">(${w.menus.length}개)</span></div>`;
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:14px">';
   w.menus.forEach(m => {
-    html += `<div style="padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px">`;
-    html += `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">${m.name}</div>`;
-    if (m.ingredients) html += `<div style="font-size:11px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
+    html += `<div style="padding:9px 11px;background:white;border:1px solid var(--border);border-radius:8px">`;
+    html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">${m.name}</div>`;
+    if (m.ingredients) html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
     html += '</div>';
   });
   html += '</div>';
 
   const allVegCount = (veg.hanwoo||[]).length + (veg.chicken||[]).length + (veg.p3||[]).length;
   if (allVegCount) {
-    html += `<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text)">🥕 이유식 주재료 <span style="color:var(--text-light);font-weight:400">(${allVegCount}건)</span></div>`;
+    html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🥕 이유식 주재료 <span style="color:var(--text-light);font-weight:400">(${allVegCount}건)</span></div>`;
     const renderRow = (label, arr) => {
       if (!arr || !arr.length) return '';
-      let s = `<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text-light);font-weight:600;margin-bottom:4px">${label}</div><div class="history-tags">`;
+      let s = `<div style="margin-bottom:6px"><div style="font-size:10px;color:var(--text-light);font-weight:600;margin-bottom:3px">${label}</div><div class="history-tags">`;
       arr.forEach(v => s += `<span class="history-tag ${cls}">${v}</span>`);
       s += '</div></div>';
       return s;
     };
-    html += renderRow('한우 주재료|서브', veg.hanwoo);
-    html += renderRow('닭 주재료|서브', veg.chicken);
-    html += renderRow('기타단백질|서브', veg.p3);
+    html += renderRow('한우', veg.hanwoo);
+    html += renderRow('닭', veg.chicken);
+    html += renderRow('기타단백질', veg.p3);
   }
-  html += '</div>';
 
-  document.getElementById('menuContainer').innerHTML = html;
-  document.getElementById('menuContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('historyContent').innerHTML = html;
+  // menuContainer(이번 주 작업)는 건드리지 않음 — 두 영역이 한 화면에 같이 보임
 }
 
 function exitHistoryView() {
-  // 히스토리 보기 종료 → currentMenu 복원 (없으면 빈 안내)
-  if (currentMenu) {
-    renderMenu();
-  } else {
-    document.getElementById('menuContainer').innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-light)"><div style="font-size:48px;margin-bottom:16px">🌿</div><p style="font-size:15px;margin-bottom:20px">날짜를 선택하고 메뉴를 생성해보세요!</p><button class="btn btn-primary" onclick="generateMenu()">✨ 지금 생성하기</button></div>';
-  }
   document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-light)">주차를 선택하고 [확인]을 눌러주세요</p>';
   document.getElementById('historyWeekSelect').value = '';
 }
