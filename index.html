@@ -1246,30 +1246,55 @@ function renderSelectedWeek() {
   const idx = sorted.findIndex(x => x.weekKey === wk);
   const cls = `week${Math.min(idx + 1, 5)}`;
 
-  let html = `<div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(139,170,124,0.05)">`;
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">`;
-  html += `<strong style="font-size:14px">${fmtWeekLabel(wk)}</strong>`;
-  html += `<span style="font-size:11px;color:var(--text-light)">${wk}</span>`;
+  // 패널 안에는 간단 요약만
+  document.getElementById('historyContent').innerHTML = `<p style="font-size:13px;color:var(--text-light)">아래 메인 영역에 <strong>${fmtWeekLabel(wk)}</strong> 메뉴를 표시 중입니다.</p>`;
+
+  // 메인 영역(menuContainer)에 선택 주차 read-only 표시
+  let html = `<div style="background:rgba(139,170,124,0.06);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;">`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">`;
+  html += `<strong style="font-size:15px">📖 ${fmtWeekLabel(wk)} <span style="font-size:11px;color:var(--text-light);font-weight:400">· ${wk}</span></strong>`;
+  html += `<button class="btn btn-ghost" onclick="exitHistoryView()" style="padding:6px 14px;font-size:12px">↩️ 이번 주 작업으로</button>`;
   html += `</div>`;
 
-  html += `<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text)">🍲 유아식 반찬 (${w.menus.length}개)</div>`;
-  html += '<div class="history-tags" style="margin-bottom:12px">';
+  html += `<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text)">🍲 유아식 반찬 <span style="color:var(--text-light);font-weight:400">(${w.menus.length}개)</span></div>`;
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:16px">';
   w.menus.forEach(m => {
-    const ingTip = m.ingredients ? `${m.name} - ${m.ingredients}` : m.name;
-    html += `<span class="history-tag ${cls}" title="${ingTip}">${m.name}</span>`;
+    html += `<div style="padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px">`;
+    html += `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">${m.name}</div>`;
+    if (m.ingredients) html += `<div style="font-size:11px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
+    html += '</div>';
   });
   html += '</div>';
 
-  const allVeg = [...(veg.hanwoo||[]), ...(veg.chicken||[]), ...(veg.p3||[])];
-  if (allVeg.length) {
-    html += `<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text)">🥕 이유식 주재료 (${allVeg.length}건)</div>`;
-    if (veg.hanwoo && veg.hanwoo.length) { html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:4px">한우</div><div class="history-tags" style="margin-bottom:8px">`; veg.hanwoo.forEach(v => html += `<span class="history-tag ${cls}">${v}</span>`); html += '</div>'; }
-    if (veg.chicken && veg.chicken.length) { html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:4px">닭</div><div class="history-tags" style="margin-bottom:8px">`; veg.chicken.forEach(v => html += `<span class="history-tag ${cls}">${v}</span>`); html += '</div>'; }
-    if (veg.p3 && veg.p3.length) { html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:4px">기타단백질</div><div class="history-tags">`; veg.p3.forEach(v => html += `<span class="history-tag ${cls}">${v}</span>`); html += '</div>'; }
+  const allVegCount = (veg.hanwoo||[]).length + (veg.chicken||[]).length + (veg.p3||[]).length;
+  if (allVegCount) {
+    html += `<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text)">🥕 이유식 주재료 <span style="color:var(--text-light);font-weight:400">(${allVegCount}건)</span></div>`;
+    const renderRow = (label, arr) => {
+      if (!arr || !arr.length) return '';
+      let s = `<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text-light);font-weight:600;margin-bottom:4px">${label}</div><div class="history-tags">`;
+      arr.forEach(v => s += `<span class="history-tag ${cls}">${v}</span>`);
+      s += '</div></div>';
+      return s;
+    };
+    html += renderRow('한우 주재료|서브', veg.hanwoo);
+    html += renderRow('닭 주재료|서브', veg.chicken);
+    html += renderRow('기타단백질|서브', veg.p3);
   }
   html += '</div>';
 
-  document.getElementById('historyContent').innerHTML = html;
+  document.getElementById('menuContainer').innerHTML = html;
+  document.getElementById('menuContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function exitHistoryView() {
+  // 히스토리 보기 종료 → currentMenu 복원 (없으면 빈 안내)
+  if (currentMenu) {
+    renderMenu();
+  } else {
+    document.getElementById('menuContainer').innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-light)"><div style="font-size:48px;margin-bottom:16px">🌿</div><p style="font-size:15px;margin-bottom:20px">날짜를 선택하고 메뉴를 생성해보세요!</p><button class="btn btn-primary" onclick="generateMenu()">✨ 지금 생성하기</button></div>';
+  }
+  document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-light)">주차를 선택하고 [확인]을 눌러주세요</p>';
+  document.getElementById('historyWeekSelect').value = '';
 }
 
 // 페이지 로드 시 자동으로 패널 열고 주차 목록 채움
