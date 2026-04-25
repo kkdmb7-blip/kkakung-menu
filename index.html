@@ -1263,19 +1263,30 @@ function renderSelectedWeek() {
   });
   html += '</div>';
 
-  const allVegCount = (veg.hanwoo||[]).length + (veg.chicken||[]).length + (veg.p3||[]).length;
-  if (allVegCount) {
-    html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🥕 이유식 주재료 <span style="color:var(--text-light);font-weight:400">(${allVegCount}건)</span></div>`;
-    const renderRow = (label, arr) => {
-      if (!arr || !arr.length) return '';
-      let s = `<div style="margin-bottom:6px"><div style="font-size:10px;color:var(--text-light);font-weight:600;margin-bottom:3px">${label}</div><div class="history-tags">`;
-      arr.forEach(v => s += `<span class="history-tag ${cls}">${v}</span>`);
-      s += '</div></div>';
-      return s;
-    };
-    html += renderRow('한우', veg.hanwoo);
-    html += renderRow('닭', veg.chicken);
-    html += renderRow('기타단백질', veg.p3);
+  // 이유식 메뉴 — 주재료 콤보를 메뉴 이름으로 재구성해서 카드로 표시
+  // 콤보 형식: "주재료|서브" (예: "양파|한우육수")
+  const buildYushikMenu = (combo, type) => {
+    const [main, sub] = combo.split('|');
+    if (type === 'hanwoo')  return { name: `한우 ${main}`, ingredients: `한우, ${main}${sub?', '+sub:''}, 양파, 한우육수, 채소상탕` };
+    if (type === 'chicken') return { name: `닭가슴살 ${main}`, ingredients: `닭가슴살, ${main}${sub?', '+sub:''}, 양파, 닭육수, 채소상탕` };
+    return { name: `${main}${sub?' '+sub:''}`, ingredients: `${main}${sub?', '+sub:''}, 당근, 양파, 채소상탕` };
+  };
+  const yushikMenus = [];
+  (veg.hanwoo || []).forEach(c => yushikMenus.push({ ...buildYushikMenu(c, 'hanwoo'), label: '한우' }));
+  (veg.chicken || []).forEach(c => yushikMenus.push({ ...buildYushikMenu(c, 'chicken'), label: '닭' }));
+  (veg.p3 || []).forEach(c => yushikMenus.push({ ...buildYushikMenu(c, 'other'), label: '기타' }));
+
+  if (yushikMenus.length) {
+    html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🥄 이유식 메뉴 <span style="color:var(--text-light);font-weight:400">(${yushikMenus.length}개)</span></div>`;
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">';
+    yushikMenus.forEach(m => {
+      html += `<div style="padding:9px 11px;background:white;border:1px solid var(--border);border-radius:8px">`;
+      html += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:3px">${m.label}</div>`;
+      html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">${m.name}</div>`;
+      html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
+      html += '</div>';
+    });
+    html += '</div>';
   }
 
   document.getElementById('historyContent').innerHTML = html;
