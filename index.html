@@ -178,8 +178,14 @@ pb { padding-bottom: 100px; display: block; }
   </div>
 
   <div id="historyPanel" style="display:none" class="history-panel">
-    <h4>📚 최근 5주 사용 재료 / 반찬 이력</h4>
-    <div id="historyContent"></div>
+    <h4>📚 지난 주차 메뉴 보기</h4>
+    <div id="historyControls" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <select id="historyWeekSelect" style="flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:white;font-family:inherit;">
+        <option value="">불러오는 중...</option>
+      </select>
+      <button class="btn btn-primary" id="historyConfirmBtn" onclick="renderSelectedWeek()" style="padding:9px 18px;">확인</button>
+    </div>
+    <div id="historyContent" style="font-size:13px;color:var(--text-light);">주차를 선택해주세요</div>
   </div>
 
   <div id="menuContainer">
@@ -1186,65 +1192,87 @@ function checkConflicts() {
 
 // ===== 히스토리 보기 =====
 function fmtWeekLabel(weekKey) {
-  // YYYY-MM-DD → "MM/DD 주차"
   const m = weekKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return weekKey;
-  return `${m[2]}/${m[3]} 주`;
+  return `${m[1].slice(2)}년 ${m[2]}월 ${m[3]}일 주`;
 }
+
+let _historyData = null;
 
 async function showHistory(forceOpen) {
   const panel = document.getElementById('historyPanel');
   if (!forceOpen && panel.style.display !== 'none') { panel.style.display = 'none'; return; }
-
-  document.getElementById('historyContent').innerHTML = '<p style="font-size:13px;color:var(--text-light)">불러오는 중...</p>';
   panel.style.display = 'block';
 
+  const sel = document.getElementById('historyWeekSelect');
+  sel.innerHTML = '<option value="">불러오는 중...</option>';
+  sel.disabled = true;
+  document.getElementById('historyContent').innerHTML = '';
+
   const h = await loadHistory();
-  let html = '';
+  _historyData = h;
 
   if (h._loadFailed) {
-    html = '<p style="font-size:13px;color:#c44">⚠️ 서버 연결 실패. 잠시 후 다시 시도해주세요.</p>';
-    document.getElementById('historyContent').innerHTML = html;
+    sel.innerHTML = '<option value="">서버 연결 실패</option>';
+    document.getElementById('historyContent').innerHTML = '<p style="color:#c44">⚠️ 서버 연결 실패. 잠시 후 다시 시도해주세요.</p>';
     return;
   }
 
-  if (h.yusik.length) {
-    // 주차별 분리해서 표시 (최신부터)
-    const sorted = [...h.yusik].reverse();
-    sorted.forEach((w, wi) => {
-      const veg = h.yushik_veggie.find(x => x.weekKey === w.weekKey) || {hanwoo:[],chicken:[],p3:[]};
-      const cls = `week${Math.min(wi+1, 5)}`;
-      const isThisWeek = wi === 0;
-      html += `<div style="margin-bottom:14px;padding:12px;border:1px solid var(--border);border-radius:10px;background:${isThisWeek?'rgba(139,170,124,0.06)':'white'}">`;
-      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">`;
-      html += `<strong style="font-size:13px">${fmtWeekLabel(w.weekKey)}${isThisWeek?' <span style="font-size:10px;color:var(--primary);font-weight:600">· 이번 주</span>':''}</strong>`;
-      html += `<span style="font-size:11px;color:var(--text-light)">${w.weekKey}</span>`;
-      html += `</div>`;
-      html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:6px">유아식 반찬 (${w.menus.length})</div>`;
-      html += '<div class="history-tags" style="margin-bottom:8px">';
-      w.menus.forEach(m => {
-        const ingTip = m.ingredients ? ` (${m.ingredients})` : '';
-        html += `<span class="history-tag ${cls}" title="${m.name}${ingTip}">${m.name}</span>`;
-      });
-      html += '</div>';
-      const allVeg = [...(veg.hanwoo||[]), ...(veg.chicken||[]), ...(veg.p3||[])];
-      if (allVeg.length) {
-        html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:6px">이유식 주재료 (${allVeg.length})</div>`;
-        html += '<div class="history-tags">';
-        allVeg.forEach(v => { html += `<span class="history-tag ${cls}">${v}</span>`; });
-        html += '</div>';
-      }
-      html += '</div>';
-    });
+  if (!h.yusik.length) {
+    sel.innerHTML = '<option value="">기록 없음</option>';
+    document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-light)">아직 저장된 기록이 없어요. 메뉴 생성 후 저장해주세요.</p>';
+    return;
   }
 
-  if (!html) html = '<p style="font-size:13px;color:var(--text-light)">아직 저장된 기록이 없어요. 메뉴 생성 후 저장해주세요.</p>';
-
-  document.getElementById('historyContent').innerHTML = html;
-  panel.style.display = 'block';
+  // 최신 주차가 위에 오도록 정렬
+  const sorted = [...h.yusik].sort((a, b) => b.weekKey.localeCompare(a.weekKey));
+  sel.innerHTML = sorted.map((w, i) => {
+    const isThis = i === 0;
+    return `<option value="${w.weekKey}">${fmtWeekLabel(w.weekKey)}${isThis ? ' (이번 주)' : ''} · ${w.menus.length}개</option>`;
+  }).join('');
+  sel.disabled = false;
+  document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-light)">주차를 선택하고 [확인]을 눌러주세요</p>';
 }
 
-// 페이지 로드 시 히스토리 자동 표시 (지난 메뉴 항상 보이게)
+function renderSelectedWeek() {
+  if (!_historyData) { document.getElementById('historyContent').innerHTML = '<p style="color:#c44">먼저 히스토리를 불러와주세요.</p>'; return; }
+  const wk = document.getElementById('historyWeekSelect').value;
+  if (!wk) return;
+  const w = _historyData.yusik.find(x => x.weekKey === wk);
+  const veg = _historyData.yushik_veggie.find(x => x.weekKey === wk) || {hanwoo:[],chicken:[],p3:[]};
+  if (!w) { document.getElementById('historyContent').innerHTML = '<p style="color:#c44">데이터를 찾을 수 없어요.</p>'; return; }
+
+  const sorted = [..._historyData.yusik].sort((a, b) => b.weekKey.localeCompare(a.weekKey));
+  const idx = sorted.findIndex(x => x.weekKey === wk);
+  const cls = `week${Math.min(idx + 1, 5)}`;
+
+  let html = `<div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(139,170,124,0.05)">`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">`;
+  html += `<strong style="font-size:14px">${fmtWeekLabel(wk)}</strong>`;
+  html += `<span style="font-size:11px;color:var(--text-light)">${wk}</span>`;
+  html += `</div>`;
+
+  html += `<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text)">🍲 유아식 반찬 (${w.menus.length}개)</div>`;
+  html += '<div class="history-tags" style="margin-bottom:12px">';
+  w.menus.forEach(m => {
+    const ingTip = m.ingredients ? `${m.name} - ${m.ingredients}` : m.name;
+    html += `<span class="history-tag ${cls}" title="${ingTip}">${m.name}</span>`;
+  });
+  html += '</div>';
+
+  const allVeg = [...(veg.hanwoo||[]), ...(veg.chicken||[]), ...(veg.p3||[])];
+  if (allVeg.length) {
+    html += `<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text)">🥕 이유식 주재료 (${allVeg.length}건)</div>`;
+    if (veg.hanwoo && veg.hanwoo.length) { html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:4px">한우</div><div class="history-tags" style="margin-bottom:8px">`; veg.hanwoo.forEach(v => html += `<span class="history-tag ${cls}">${v}</span>`); html += '</div>'; }
+    if (veg.chicken && veg.chicken.length) { html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:4px">닭</div><div class="history-tags" style="margin-bottom:8px">`; veg.chicken.forEach(v => html += `<span class="history-tag ${cls}">${v}</span>`); html += '</div>'; }
+    if (veg.p3 && veg.p3.length) { html += `<div style="font-size:11px;color:var(--text-light);margin-bottom:4px">기타단백질</div><div class="history-tags">`; veg.p3.forEach(v => html += `<span class="history-tag ${cls}">${v}</span>`); html += '</div>'; }
+  }
+  html += '</div>';
+
+  document.getElementById('historyContent').innerHTML = html;
+}
+
+// 페이지 로드 시 자동으로 패널 열고 주차 목록 채움
 window.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => showHistory(true), 200);
 });
