@@ -1298,9 +1298,10 @@ async function showHistory(forceOpen) {
   // 그 외: select 드롭다운
   const rest = sorted.slice(3);
 
-  btnsBox.innerHTML = quick.map((w, i) => {
-    const label = i === 0 ? '이번 주' : `${fmtWeekLabel(w.weekKey)}`;
-    const isThis = i === 0;
+  // 전주 → 이번 주 순서 (오래된 것이 왼쪽)
+  btnsBox.innerHTML = [...quick].reverse().map((w, i, arr) => {
+    const isThis = i === arr.length - 1; // 마지막이 이번 주
+    const label = isThis ? '이번 주' : fmtWeekLabel(w.weekKey);
     const bg = isThis ? 'rgba(139,170,124,0.18)' : '#fff';
     const border = isThis ? 'rgba(139,170,124,0.55)' : 'var(--border)';
     return `<button onclick="quickSelectWeek('${w.weekKey}')" data-week="${w.weekKey}" class="hist-quick-btn" style="padding:8px 14px;border:1px solid ${border};background:${bg};border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">${label}</button>`;
