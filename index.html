@@ -202,7 +202,6 @@ pb { padding-bottom: 100px; display: block; }
 <div class="bottom-bar">
   <div class="bottom-bar-info" id="bottomInfo">메뉴를 생성하면 편집할 수 있어요</div>
   <div class="bottom-bar-actions">
-    <button class="btn btn-ghost" id="conflictBtn" onclick="checkConflicts()">🔍 재료 중복 확인</button>
     <button class="btn btn-ghost" id="downloadBtn" onclick="downloadImages()">🖼️ 이미지 다운로드</button>
     <button class="btn btn-ghost" onclick="resetToSaved()" style="color:var(--primary)">↩️ 원복</button>
     <button class="btn btn-secondary" onclick="saveMenu()">💾 이번 주 저장</button>
@@ -793,7 +792,10 @@ async function resetToSaved() {
     localStorage.removeItem(CUR_KEY);
     document.getElementById('weekStart').value = weekKey;
     updateWeekDates();
-    renderMenu();
+    // 비교 모드 종료 후 단독 편집 뷰로 복원
+    window._histCompareActive = false;
+    window._histCompare = null;
+    renderCurrentInHistory();
     showToast('↩️ DB 저장 상태로 원복됐어요');
   } catch(e) {
     localStorage.removeItem(CUR_KEY);
@@ -1450,6 +1452,13 @@ function renderDayCard(day, accentBg, dupeSet, dupeColorMap) {
       if (it.ingredients) h += `<div style="font-size:10px;color:var(--text-light);line-height:1.4">${it.ingredients}</div>`;
       h += '</div>';
     });
+    // 국 표시 (read-only)
+    if (day.soup?.name) {
+      h += `<div style="margin-top:4px;padding:4px 7px;background:#fafafa;border-radius:5px;font-size:10px">`;
+      h += `<span style="color:var(--text-light);font-weight:600">국 </span><span style="color:var(--text);font-weight:600">${day.soup.name}</span>`;
+      if (day.soup.ingredients) h += `<div style="font-size:10px;color:var(--text-light)">${day.soup.ingredients}</div>`;
+      h += '</div>';
+    }
   } else if (day.type === 'yushik' && day.menus) {
     h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:3px">🥄 이유식</div>`;
     day.menus.forEach(m => {
@@ -1702,15 +1711,16 @@ function renderSelectedWeek() {
 }
 
 // 겹치는 재료별 색상 팔레트
+// 중복 재료 색상 — 밝은 배경에 진한 텍스트 (흰 배경에서도 잘 보이게)
 const DUPE_COLORS = [
-  {bg:'#ffd6cc',border:'#ff8c69',text:'#7a2010'},
-  {bg:'#ffeacc',border:'#ffaa44',text:'#7a4010'},
-  {bg:'#fff3cc',border:'#ffd44a',text:'#6a5010'},
-  {bg:'#d6f0cc',border:'#5abf5a',text:'#205020'},
-  {bg:'#ccebff',border:'#55aaff',text:'#0f4880'},
-  {bg:'#e8ccff',border:'#aa77ff',text:'#4a1a80'},
-  {bg:'#ffd6ee',border:'#ff77bb',text:'#7a1050'},
-  {bg:'#d6f8f0',border:'#44ccaa',text:'#0f5040'},
+  {text:'#c82010'},  // 빨강
+  {text:'#0070cc'},  // 파랑
+  {text:'#107a10'},  // 초록
+  {text:'#7a0090'},  // 보라
+  {text:'#cc7000'},  // 주황
+  {text:'#007a7a'},  // 청록
+  {text:'#cc0060'},  // 핑크
+  {text:'#705000'},  // 갈색
 ];
 
 function highlightDupes(ingStr, dupeSet, dupeColorMap) {
@@ -1725,15 +1735,16 @@ function highlightDupes(ingStr, dupeSet, dupeColorMap) {
 }
 
 function checkHistoryDupes() {
+  // 이번 주 메뉴 없으면 중단
+  if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
+
   const data = window._histCompare;
-  if (!data) return;
-  // 한우/닭 단백질 제외, 이유식(yushik)만 비교, 반찬(yusik) 제외
   const EXCLUDE = new Set(['한우','닭가슴살','닭고기','한우육수','닭육수','양파','채소상탕','당근','소금','물']);
 
   function extractYushikIngreds(schedule) {
     const set = new Set();
     (schedule || []).forEach(day => {
-      if (day.type !== 'yushik') return; // 반찬 제외
+      if (day.type !== 'yushik') return;
       (day.menus || []).forEach(m => {
         normalizeYushikIngredients(m.ingredients||'', m.type)
           .split(',').map(s=>s.trim()).filter(Boolean)
@@ -1743,43 +1754,63 @@ function checkHistoryDupes() {
     return set;
   }
 
-  // 오른쪽은 currentMenu 사용 (편집 중인 데이터)
-  const rightSchedule = currentMenu || data.thisSchedule;
-  const prev = extractYushikIngreds(data.prevSchedule);
-  const cur  = extractYushikIngreds(rightSchedule);
-  const dupes = [...prev].filter(x => cur.has(x));
-  const dupeSet = new Set(dupes);
+  // ① 이번 주 내 중복 (같은 재료 2일 이상 등장)
+  const weekIngCounts = {};
+  (currentMenu || []).forEach(day => {
+    if (day.type !== 'yushik') return;
+    (day.menus || []).forEach(m => {
+      normalizeYushikIngredients(m.ingredients||'', m.type)
+        .split(',').map(s=>s.trim()).filter(Boolean)
+        .forEach(x => { if (!EXCLUDE.has(x)) weekIngCounts[x] = (weekIngCounts[x]||0)+1; });
+    });
+  });
+  const intraWeekDupes = new Set(Object.entries(weekIngCounts).filter(([,v])=>v>1).map(([k])=>k));
 
-  // 재료별 색상 매핑 (같은 재료 = 같은 색)
+  // ② 전주 vs 이번 주 (비교 모드일 때만)
+  let crossWeekDupes = new Set();
+  if (data) {
+    const prev = extractYushikIngreds(data.prevSchedule);
+    const cur  = extractYushikIngreds(currentMenu);
+    crossWeekDupes = new Set([...prev].filter(x => cur.has(x)));
+  }
+
+  // 합산 dupeSet
+  const allDupes = new Set([...intraWeekDupes, ...crossWeekDupes]);
   const dupeColorMap = {};
-  dupes.forEach((d, i) => { dupeColorMap[d] = DUPE_COLORS[i % DUPE_COLORS.length]; });
-  window._histLastDupeSet = dupeSet;
+  [...allDupes].forEach((d, i) => { dupeColorMap[d] = DUPE_COLORS[i % DUPE_COLORS.length]; });
+  window._histLastDupeSet = allDupes;
   window._histDupeColorMap = dupeColorMap;
 
   // 상단 요약
   const el = document.getElementById('histDupeResult');
   if (el) {
-    if (!dupeSet.size) {
-      el.innerHTML = `<div style="padding:8px 12px;background:rgba(139,170,124,0.12);border:1px solid rgba(139,170,124,0.4);border-radius:8px;font-size:12px;color:#3a7030;font-weight:600">✅ 이유식 중복 재료 없음</div>`;
+    if (!allDupes.size) {
+      el.innerHTML = `<div style="padding:8px 12px;background:rgba(139,170,124,0.12);border:1px solid rgba(139,170,124,0.4);border-radius:8px;font-size:12px;color:#3a7030;font-weight:600">✅ 중복 재료 없음</div>`;
     } else {
-      const chipList = dupes.map(d => { const c = dupeColorMap[d]; return `<span style="color:${c.text};font-weight:800">${d}</span>`; }).join(', ');
-      el.innerHTML = `<div style="padding:8px 12px;background:rgba(255,214,204,0.2);border:1px solid rgba(255,140,105,0.4);border-radius:8px;font-size:11px;color:#7a2010;font-weight:600">⚠️ 겹치는 이유식 재료 ${dupeSet.size}개: ${chipList}</div>`;
+      const parts = [];
+      if (intraWeekDupes.size) parts.push(`이번 주 내 ${intraWeekDupes.size}개`);
+      if (crossWeekDupes.size) parts.push(`전주 겹침 ${crossWeekDupes.size}개`);
+      const chipList = [...allDupes].map(d => `<span style="color:${dupeColorMap[d].text};font-weight:800">${d}</span>`).join(', ');
+      el.innerHTML = `<div style="padding:8px 12px;background:rgba(255,214,204,0.2);border:1px solid rgba(255,140,105,0.4);border-radius:8px;font-size:11px;color:#7a2010;font-weight:600">⚠️ ${parts.join(' / ')}: ${chipList}</div>`;
     }
   }
 
-  // 카드 재렌더링 (색상 캡슐 표시)
-  const grid = document.getElementById('histCompareGrid');
-  if (grid) {
+  // 카드 재렌더링
+  if (data && document.getElementById('histCompareGrid')) {
+    const grid = document.getElementById('histCompareGrid');
+    const rightSchedule = currentMenu;
     const maxLen = Math.max(data.prevSchedule.length, rightSchedule.length);
     let html = '';
     for (let i = 0; i < maxLen; i++) {
-      html += renderDayCard(data.prevSchedule[i], '#fdfaf3', dupeSet, dupeColorMap);
-      const curDay = currentMenu && currentMenu[i];
-      html += curDay
-        ? renderEditableDayCard(curDay, i, 'rgba(139,170,124,0.06)', dupeSet, dupeColorMap)
-        : renderDayCard(data.thisSchedule[i], 'rgba(139,170,124,0.06)', dupeSet, dupeColorMap);
+      html += renderDayCard(data.prevSchedule[i], '#fdfaf3', allDupes, dupeColorMap);
+      html += renderEditableDayCard(rightSchedule[i], i, 'rgba(139,170,124,0.06)', allDupes, dupeColorMap);
     }
     grid.innerHTML = html;
+  } else {
+    // 단독 모드: 이번 주 카드 재렌더
+    renderCurrentInHistory();
+    // historyContent 내 카드들 재렌더 (dupeSet 적용)
+    // TODO: 단독 모드에서 dupeSet 적용은 renderCurrentInHistory 확장 필요
   }
 }
 
