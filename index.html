@@ -687,9 +687,12 @@ async function generateMenu() {
   const startVal = document.getElementById('weekStart').value;
   if (!startVal) { showToast('⚠️ 날짜를 먼저 선택해주세요'); return; }
 
-  // 기존 메뉴가 있으면 덮어쓰기 확인 (실수로 새 메뉴 뽑기 누르는 거 방지)
-  if (currentMenu && currentMenu.length) {
-    if (!confirm('현재 보이는 메뉴를 새 메뉴로 다시 뽑을까요?\n\n[확인] 새 메뉴 뽑기 (현재 메뉴 사라짐)\n[취소] 그대로 유지')) return;
+  // 이미 저장된 주차인지 확인 — 저장된 기록은 보존이 원칙
+  const alreadySaved = await isWeekSaved(startVal);
+  if (alreadySaved) {
+    if (!confirm(`⚠️ 이미 저장된 주차예요!\n\n기록된 메뉴를 새로 뽑으면\n히스토리가 바뀝니다.\n\n계속 새로 뽑을까요?`)) return;
+  } else if (currentMenu && currentMenu.length) {
+    if (!confirm('현재 보이는 메뉴를 새 메뉴로 다시 뽑을까요?\n\n[확인] 새 메뉴 뽑기\n[취소] 그대로 유지')) return;
   }
 
   showToast('⏳ 히스토리 불러오는 중...');
@@ -1177,11 +1180,31 @@ async function regenDay(di) {
 async function saveMenu() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
   const weekKey = document.getElementById('weekStart').value;
+
+  // 이미 저장된 주차 재저장 시 경고
+  const alreadySaved = await isWeekSaved(weekKey);
+  if (alreadySaved) {
+    if (!confirm(`⚠️ 이미 저장된 주차예요!\n\n다시 저장하면 기존 기록이\n바뀝니다.\n\n정말 다시 저장할까요?`)) return;
+  }
+
   showToast('⏳ 저장 중...');
   await recordThisWeek(weekKey, currentMenu);
   document.getElementById('bottomInfo').textContent =
-    `✅ ${weekKey} 저장 완료 — 다음 생성 시 자동 반영`;
-  showToast('💾 서버에 저장됐어요! 다음 주 생성 시 중복 자동 제거');
+    `✅ ${weekKey} 저장 완료`;
+  showToast('💾 저장됐어요!');
+}
+
+// 해당 주차가 이미 서버에 저장됐는지 확인
+async function isWeekSaved(weekKey) {
+  if (!weekKey) return false;
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=eq.${weekKey}&select=yusik`, {
+      headers: SB_HEADERS
+    });
+    if (!res.ok) return false;
+    const rows = await res.json();
+    return rows.length > 0 && !!(rows[0].yusik && rows[0].yusik.schedule);
+  } catch(e) { return false; }
 }
 
 // ===== 중복 확인 =====
