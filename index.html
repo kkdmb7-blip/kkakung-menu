@@ -111,6 +111,7 @@ header {
 .chip-picker.active { display: flex; }
 .chip-picker-label { font-size: 11px; color: var(--text-light); width: 100%; margin-bottom: 2px; }
 .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.menu-container-hidden { display: none !important; }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 -4px 20px rgba(0,0,0,0.06); }
 .bottom-bar-info { font-size: 13px; color: var(--text-light); }
 .bottom-bar-actions { display: flex; gap: 10px; }
@@ -188,7 +189,7 @@ pb { padding-bottom: 100px; display: block; }
     <div id="historyContent" style="font-size:13px;color:var(--text-light);">주차를 선택해주세요</div>
   </div>
 
-  <div id="menuContainer">
+  <div id="menuContainer" class="menu-container-hidden">
     <div style="text-align:center;padding:60px 20px;color:var(--text-light)">
       <div style="font-size:48px;margin-bottom:16px">🌿</div>
       <p style="font-size:15px;margin-bottom:20px">날짜를 선택하고 메뉴를 생성해보세요!</p>
@@ -805,8 +806,23 @@ async function resetToSaved() {
 function renderMenu() {
   if (!currentMenu) return;
   persistCurrent();
-  const container = document.getElementById('menuContainer');
-  container.innerHTML = '<div class="days-grid">' + currentMenu.map((day, di) => renderDay(day, di)).join('') + '</div>';
+  // 비교 모드 중이면 개별 카드 갱신만 (renderSelectedWeek가 관리)
+  if (window._histCompareActive) return;
+  // historyContent에 이번주 단독 편집 뷰 표시
+  renderCurrentInHistory();
+}
+
+function renderCurrentInHistory() {
+  if (!currentMenu) {
+    document.getElementById('historyContent').innerHTML = '<p style="font-size:13px;color:var(--text-light)">날짜를 선택하고 [🎲 메뉴 새로 뽑기]를 눌러주세요</p>';
+    return;
+  }
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">';
+  currentMenu.forEach((day, di) => {
+    html += renderEditableDayCard(day, di, 'rgba(139,170,124,0.06)');
+  });
+  html += '</div>';
+  document.getElementById('historyContent').innerHTML = html;
 }
 
 function renderDay(day, di) {
@@ -1169,11 +1185,10 @@ function saveEdit() {
     currentMenu[di].soup.origin = origin;
   }
 
-  // 히스토리 비교 모드: 오른쪽 카드만 갱신 (menuContainer 갱신 생략)
-  if (window._histCompareActive && editTarget.type === 'menu' && window._histEditType === 'menu') {
-    refreshHistEditCard(window._histEditDi != null ? window._histEditDi : editTarget.di);
-  } else if (window._histCompareActive && editTarget.type === 'yusik' && window._histEditType === 'yusik') {
-    refreshHistEditCard(window._histEditDi != null ? window._histEditDi : editTarget.di);
+  // 항상 해당 카드만 갱신 (renderMenu 대신 refreshHistEditCard)
+  const _di = window._histEditDi != null ? window._histEditDi : (editTarget.di != null ? editTarget.di : null);
+  if (_di != null) {
+    refreshHistEditCard(_di);
   } else {
     renderMenu();
   }
@@ -1230,7 +1245,7 @@ async function regenDay(di) {
     currentMenu[di].items = shuffled.slice(0, 5);
     currentMenu[di].soup = shuffle(YUSIK_SOUP)[0];
   }
-  renderMenu();
+  refreshHistEditCard(di);
   showToast('✅ 메뉴가 생성되었어요');
 }
 
@@ -1371,7 +1386,8 @@ async function showHistory(forceOpen) {
   } else {
     sel.parentElement.style.display = 'none';
   }
-  document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-light)">위 버튼을 누르면 해당 주차 메뉴가 표시됩니다</p>';
+  // 버튼 로드 후 현재 메뉴 단독 뷰 표시
+  renderCurrentInHistory();
 }
 
 function quickSelectWeek(wk) {
@@ -1453,31 +1469,75 @@ function renderEditableDayCard(day, di, accentBg, dupeSet, dupeColorMap) {
   if (!day) return `<div style="padding:14px;background:#fafafa;border:1px dashed var(--border);border-radius:8px;color:var(--text-light);font-size:11px;text-align:center;min-height:60px;display:flex;align-items:center;justify-content:center">— 없음 —</div>`;
   const dateStr = (day.date instanceof Date) ? day.date.toISOString().slice(0,10) : day.date;
   const dayLabel = fmtDayLabel(dateStr);
-  let h = `<div id="histEditCard-${di}" style="background:${accentBg||'white'};border:1px solid rgba(139,170,124,0.45);border-radius:8px;padding:10px;">`;
-  h += `<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border)">${dayLabel}</div>`;
-  if (day.type === 'yusik' && day.items) {
-    h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:3px">🍲 유아식</div>`;
+  const border = accentBg && accentBg.includes('139') ? '1px solid rgba(139,170,124,0.45)' : '1px solid var(--border)';
+  let h = `<div id="histEditCard-${di}" style="background:${accentBg||'white'};border:${border};border-radius:8px;padding:10px;">`;
+
+  // 헤더: 날짜 + 공휴일/재생성 버튼
+  h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border)">`;
+  h += `<span style="font-size:12px;font-weight:700;color:var(--text)">${dayLabel}</span>`;
+  if (day.removed) {
+    h += `<button onclick="regenDay(${di})" style="background:var(--primary-light);border:1px solid #f5c5aa;color:var(--primary);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer">+ 메뉴 생성</button>`;
+  } else if (day.type === 'yushik') {
+    h += `<button onclick="removeDayAndRefresh(${di})" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-size:11px;cursor:pointer;color:var(--text-light)">공휴일</button>`;
+  } else if (day.type === 'yusik') {
+    h += `<button onclick="removeDayAndRefresh(${di})" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-size:11px;cursor:pointer;color:var(--text-light)">공휴일</button>`;
+  }
+  h += '</div>';
+
+  if (day.removed) {
+    h += `<div style="font-size:12px;color:var(--text-light);text-align:center;padding:10px 0">공휴일</div>`;
+  } else if (day.type === 'yusik' && day.items) {
+    h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:4px">🍲 유아식</div>`;
     day.items.forEach((it, ii) => {
       h += `<div style="margin-bottom:5px;padding:5px 7px;background:#fafafa;border-radius:5px;display:flex;align-items:flex-start;gap:6px">`;
       h += `<div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:1px">${ii+1}. ${it.name}</div>`;
       if (it.ingredients) h += `<div style="font-size:10px;color:var(--text-light);line-height:1.4">${it.ingredients}</div>`;
-      h += `</div><button onclick="openEditYusikAndRefresh(${di},${ii})" style="background:none;border:none;font-size:13px;cursor:pointer;padding:0;flex-shrink:0;opacity:0.7">✏️</button>`;
-      h += '</div>';
+      h += `</div>`;
+      h += `<div style="display:flex;gap:3px;flex-shrink:0">`;
+      h += `<button onclick="openEditYusikAndRefresh(${di},${ii})" style="background:none;border:none;font-size:12px;cursor:pointer;padding:0;opacity:0.7">✏️</button>`;
+      h += `<button onclick="deleteYusikAndRefresh(${di},${ii})" style="background:none;border:none;font-size:12px;cursor:pointer;padding:0;opacity:0.5;color:#c44">✕</button>`;
+      h += `</div></div>`;
     });
+    if (day.items.length < 7) h += `<button onclick="addYusikAndRefresh(${di})" style="width:100%;padding:5px;background:none;border:1px dashed var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--text-light);margin-top:3px">+ 반찬 추가</button>`;
+    if (day.soup) {
+      h += `<div style="margin-top:6px;padding:5px 7px;background:#fafafa;border-radius:5px;display:flex;align-items:flex-start;gap:6px">`;
+      h += `<div style="flex:1"><div style="font-size:10px;font-weight:600;color:var(--text-light);margin-bottom:1px">국</div>`;
+      h += `<div style="font-size:11px;font-weight:600;color:var(--text)">${day.soup.name}</div>`;
+      if (day.soup.ingredients) h += `<div style="font-size:10px;color:var(--text-light)">${day.soup.ingredients}</div>`;
+      h += `</div><button onclick="openEditSoupAndRefresh(${di})" style="background:none;border:none;font-size:12px;cursor:pointer;padding:0;opacity:0.7">✏️</button>`;
+      h += '</div>';
+    }
   } else if (day.type === 'yushik' && day.menus) {
-    h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:3px">🥄 이유식</div>`;
+    h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:4px">🥄 이유식</div>`;
     day.menus.forEach((m, mi) => {
       const ing = normalizeYushikIngredients(m.ingredients||'', m.type);
       h += `<div style="margin-bottom:5px;padding:5px 7px;background:#fafafa;border-radius:5px;display:flex;align-items:flex-start;gap:6px">`;
       h += `<div style="flex:1">`;
       if (ing) h += `<div style="font-size:11px;font-weight:700;color:var(--text);line-height:1.4">${highlightDupes(ing, dupeSet, dupeColorMap)}</div>`;
       if (m.midNote) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${m.midNote}</div>`;
-      h += `</div><button onclick="openEditAndRefresh(${di},${mi})" style="background:none;border:none;font-size:13px;cursor:pointer;padding:0;flex-shrink:0;opacity:0.7">✏️</button>`;
+      h += `</div><button onclick="openEditAndRefresh(${di},${mi})" style="background:none;border:none;font-size:12px;cursor:pointer;padding:0;flex-shrink:0;opacity:0.7">✏️</button>`;
       h += '</div>';
     });
   }
   h += '</div>';
   return h;
+}
+
+// 히스토리 카드용 helper wrappers
+function removeDayAndRefresh(di) { currentMenu[di].removed = true; refreshHistEditCard(di); showToast('공휴일 처리됨'); }
+function deleteYusikAndRefresh(di, ii) {
+  if (currentMenu[di].items.length <= 3) { showToast('⚠️ 최소 3개'); return; }
+  currentMenu[di].items.splice(ii, 1); refreshHistEditCard(di);
+}
+function addYusikAndRefresh(di) {
+  currentMenu[di].items.push({ name: '새 반찬', ingredients: '' });
+  refreshHistEditCard(di);
+  // 마지막 항목 편집 바로 열기
+  setTimeout(() => openEditYusikAndRefresh(di, currentMenu[di].items.length - 1), 100);
+}
+function openEditSoupAndRefresh(di) {
+  window._histEditDi = di; window._histEditType = 'soup';
+  openEditSoup(di);
 }
 
 // 편집 후 히스토리 오른쪽 카드만 갱신
@@ -1492,13 +1552,19 @@ function openEditYusikAndRefresh(di, ii) {
 function refreshHistEditCard(di) {
   if (!currentMenu || !currentMenu[di]) return;
   const el = document.getElementById(`histEditCard-${di}`);
-  if (!el) return;
-  const parent = el.parentElement;
-  const dupeSet = window._histLastDupeSet || new Set();
-  const newCard = renderEditableDayCard(currentMenu[di], di, 'rgba(139,170,124,0.06)', dupeSet);
-  const tmp = document.createElement('div');
-  tmp.innerHTML = newCard;
-  parent.replaceChild(tmp.firstChild, el);
+  if (el) {
+    const parent = el.parentElement;
+    const dupeSet = window._histLastDupeSet || new Set();
+    const dupeColorMap = window._histDupeColorMap || {};
+    const bg = window._histCompareActive ? 'rgba(139,170,124,0.06)' : 'rgba(139,170,124,0.06)';
+    const newCard = renderEditableDayCard(currentMenu[di], di, bg, dupeSet, dupeColorMap);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = newCard;
+    parent.replaceChild(tmp.firstChild, el);
+  } else {
+    // 카드가 없으면 전체 재렌더 (단독 모드)
+    renderCurrentInHistory();
+  }
 }
 
 function renderSelectedWeek() {
@@ -1712,13 +1778,11 @@ function checkHistoryDupes() {
 }
 
 function exitHistoryView() {
-  document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-light)">주차를 선택하고 [확인]을 눌러주세요</p>';
   document.getElementById('historyWeekSelect').value = '';
   window._histCompareActive = false;
   window._histCompare = null;
-  // menuContainer 다시 표시
-  document.getElementById('menuContainer').style.display = '';
-  if (currentMenu) renderMenu();
+  // 비교 닫기 → 이번주 단독 편집 뷰로 전환
+  renderCurrentInHistory();
 }
 
 // 히스토리 패널은 [📋 히스토리] 버튼 클릭 시에만 열림 (자동 열기 없음 — 메인 메뉴 화면 가리지 않게)
