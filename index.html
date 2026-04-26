@@ -62,8 +62,7 @@ header {
 .menu-content { flex: 1; }
 .menu-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
 .menu-ingredients { font-size: 12px; color: var(--text-light); line-height: 1.5; }
-.menu-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
-.menu-item:hover .menu-actions { opacity: 1; }
+.menu-actions { display: flex; gap: 4px; opacity: 1; }
 .action-btn { width: 28px; height: 28px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.15s; }
 .action-btn.edit { background: #EBF7F2; color: var(--secondary); }
 .action-btn.edit:hover { background: var(--secondary); color: white; }
@@ -1377,9 +1376,9 @@ function renderDayCard(day, accentBg) {
     h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:3px">🥄 이유식</div>`;
     day.menus.forEach(m => {
       h += `<div style="margin-bottom:5px;padding:5px 7px;background:#fafafa;border-radius:5px">`;
-      h += `<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:1px">${m.displayName||m.name}</div>`;
       const ing = normalizeYushikIngredients(m.ingredients||'', m.type);
-      if (ing) h += `<div style="font-size:10px;color:var(--text-light);line-height:1.4">${ing}</div>`;
+      if (ing) h += `<div style="font-size:11px;font-weight:700;color:var(--text);line-height:1.4">${ing}</div>`;
+      if (m.midNote) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${m.midNote}</div>`;
       h += '</div>';
     });
   }
@@ -1446,8 +1445,9 @@ function renderSelectedWeek() {
         html += `<div style="font-size:10px;color:var(--text-light);font-weight:700;margin-bottom:4px">🥄 이유식</div>`;
         day.menus.forEach((m, i) => {
           html += `<div style="margin-bottom:8px;padding:6px 8px;background:#fafafa;border-radius:6px">`;
-          html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${m.name}</div>`;
-          html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${normalizeYushikIngredients(m.ingredients||'', m.type)}</div>`;
+          const _ing = normalizeYushikIngredients(m.ingredients||'', m.type);
+          if (_ing) html += `<div style="font-size:12px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:2px">${_ing}</div>`;
+          if (m.midNote) html += `<div style="font-size:10px;color:#b84a1a;font-weight:600">⚠️ 중기: ${m.midNote}</div>`;
           html += '</div>';
         });
       }
