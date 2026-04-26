@@ -1446,18 +1446,23 @@ function renderSelectedWeek() {
     // 이유식 — 저장된 콤보 그대로 + 표준 ingredients 재구성
     const buildYushikMenu = (combo, type) => {
       const [main, sub] = (combo || '').split('|');
-      const raw = type === 'hanwoo'  ? ['한우', main, sub, '한우육수', '양파', '채소상탕'].filter(Boolean).join(', ')
-                : type === 'chicken' ? ['닭가슴살', main, sub, '닭육수', '양파', '채소상탕'].filter(Boolean).join(', ')
-                :                       [main, sub, '당근', '양파', '채소상탕'].filter(Boolean).join(', ');
+      // 단백질 + 콤보 재료만 넣음. 고정 재료(육수·양파·채소상탕·당근) 인위 추가 안 함.
+      const parts = type === 'hanwoo'  ? ['한우', main, sub]
+                  : type === 'chicken' ? ['닭가슴살', main, sub]
+                  :                      [main, sub];
+      const raw = parts.filter(Boolean).join(', ');
       const name = type === 'hanwoo'  ? `한우 ${main||''}`.trim()
                  : type === 'chicken' ? `닭가슴살 ${main||''}`.trim()
                  :                      `${main||''}${sub?' '+sub:''}`.trim();
       return { name, ingredients: normalizeYushikIngredients(raw, type), type };
     };
+    // 동일 이름 중복 제거
+    const seen = new Set();
     const yushikMenus = [];
-    (veg.hanwoo || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'hanwoo')));
-    (veg.chicken || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'chicken')));
-    (veg.p3 || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'other')));
+    const addMenu = (m) => { if (!seen.has(m.name)) { seen.add(m.name); yushikMenus.push(m); } };
+    (veg.hanwoo || []).forEach(c => addMenu(buildYushikMenu(c, 'hanwoo')));
+    (veg.chicken || []).forEach(c => addMenu(buildYushikMenu(c, 'chicken')));
+    (veg.p3 || []).forEach(c => addMenu(buildYushikMenu(c, 'other')));
 
     if (yushikMenus.length) {
       html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🥄 이유식 메뉴 <span style="color:var(--text-light);font-weight:400">(${yushikMenus.length}개)</span></div>`;
