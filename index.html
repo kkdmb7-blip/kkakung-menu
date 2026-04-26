@@ -230,6 +230,10 @@ pb { padding-bottom: 100px; display: block; }
       <label>추천 선택</label>
       <div class="suggestions" id="suggestionsList"></div>
     </div>
+    <div class="modal-section" id="midNoteSection" style="display:none">
+      <label>중기 주의 <span style="font-size:11px;color:var(--text-light);font-weight:400;text-transform:none;letter-spacing:0">알러지·단계 차이 있으면 입력</span></label>
+      <input type="text" id="editMidNote" placeholder="예: 새우 제외" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none">
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('editModal')">취소</button>
       <button class="btn btn-primary" onclick="saveEdit()">저장</button>
@@ -826,10 +830,8 @@ function renderDay(day, di) {
       <div class="menu-item">
         <div class="menu-num ${numClass}">${mi+1}</div>
         <div class="menu-content">
-          <div class="menu-name">
-            ${menu.displayName || menu.name}
-          </div>
-          <div class="menu-ingredients">${highlightIngreds(normalizeYushikIngredients(menu.ingredients, menu.type))}</div>
+          <div class="menu-ingredients" style="font-weight:700;color:var(--text)">${highlightIngreds(normalizeYushikIngredients(menu.ingredients, menu.type))}</div>
+          ${menu.midNote ? `<div style="font-size:11px;color:#b84a1a;margin-top:3px;font-weight:600">⚠️ 중기: ${menu.midNote}</div>` : ''}
         </div>
         <div class="menu-actions">
           <button class="action-btn edit" onclick="openEdit(${di},${mi})">✏️</button>
@@ -859,8 +861,10 @@ function openEdit(di, mi) {
   editTarget = { type: 'menu', di, mi, menuType: menu.type };
   document.getElementById('editName').value = menu.displayName || menu.name;
   document.getElementById('editOrigin').value = '';
+  document.getElementById('editMidNote').value = menu.midNote || '';
   initChipEditor(menu.ingredients);
   document.getElementById('suggestionsSection').style.display = 'none';
+  document.getElementById('midNoteSection').style.display = '';
   document.getElementById('editModal').classList.add('active');
 }
 
@@ -869,6 +873,8 @@ function openEditYusik(di, ii) {
   const item = currentMenu[di].items[ii];
   document.getElementById('editName').value = item.name;
   document.getElementById('editOrigin').value = item.origin || '';
+  document.getElementById('editMidNote').value = '';
+  document.getElementById('midNoteSection').style.display = 'none';
   initChipEditor(item.ingredients);
   document.getElementById('suggestionsSection').style.display = '';
   document.getElementById('suggestionsList').innerHTML = YUSIK_MAIN.map(m =>
@@ -882,6 +888,8 @@ function openEditSoup(di) {
   const soup = currentMenu[di].soup;
   document.getElementById('editName').value = soup.name;
   document.getElementById('editOrigin').value = soup.origin || '';
+  document.getElementById('editMidNote').value = '';
+  document.getElementById('midNoteSection').style.display = 'none';
   initChipEditor(soup.ingredients);
   document.getElementById('suggestionsSection').style.display = '';
   document.getElementById('suggestionsList').innerHTML = YUSIK_SOUP.map(s =>
@@ -1091,6 +1099,7 @@ function saveEdit() {
     const menu = currentMenu[di].menus[mi];
     menu.displayName = name;
     menu.name = name.includes('죽') ? name : name + ' 죽/무른밥/진밥';
+    menu.midNote = document.getElementById('editMidNote').value.trim() || '';
     if (ingredients) {
       menu.ingredients = ingredients;
       // 수정된 재료에서 mainVeggie/subVeggie 갱신 → 저장 시 정확한 콤보 기록
