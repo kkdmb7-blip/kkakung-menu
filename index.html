@@ -401,7 +401,8 @@ async function loadHistory() {
     const rows = await res.json();
     const yusik = rows.map(r => ({
       weekKey: r.id,
-      menus: (r.yusik && r.yusik.menus) || (Array.isArray(r.yusik) ? [] : [])
+      menus: (r.yusik && r.yusik.menus) || (Array.isArray(r.yusik) ? [] : []),
+      schedule: (r.yusik && r.yusik.schedule) || null
     }));
     const yushik_veggie = rows.map(r => ({
       weekKey: r.id,
@@ -424,14 +425,14 @@ async function loadHistory() {
 }
 
 // 한 주 단위 upsert. 단일 row로 저장 → 다른 주 데이터 영향 없음.
-async function saveWeek(weekKey, yusikMenus, veggie) {
+async function saveWeek(weekKey, yusikMenus, veggie, schedule) {
   if (!weekKey || !/^\d{4}-\d{2}-\d{2}$/.test(weekKey)) {
     alert('저장 실패: weekKey 형식 오류 (' + weekKey + ')');
     return false;
   }
   const body = {
     id: weekKey,
-    yusik: { menus: yusikMenus || [] },
+    yusik: { menus: yusikMenus || [], schedule: schedule || null },
     yushik_veggie: {
       hanwoo: (veggie && veggie.hanwoo) || [],
       chicken: (veggie && veggie.chicken) || [],
@@ -531,8 +532,21 @@ async function recordThisWeek(weekKey, menuData) {
       });
     }
   });
+  // schedule: 일주일 전체 일자별 메뉴를 그대로 저장 (요일 정확 표시용)
+  const schedule = menuData.map(day => ({
+    date: (day.date instanceof Date) ? day.date.toISOString().slice(0, 10) : day.date,
+    type: day.type,
+    items: day.type === 'yusik' ? (day.items || []).map(it => ({ name: it.name, ingredients: it.ingredients })) : null,
+    menus: day.type === 'yushik' ? (day.menus || []).map(m => ({
+      type: m.type,
+      name: m.displayName || m.name,
+      ingredients: m.ingredients,
+      mainVeggie: m.mainVeggie || m.mainProtein,
+      subVeggie: m.subVeggie
+    })) : null
+  }));
   // 단일 주차 row upsert — 다른 주 데이터에 영향 없음
-  const ok = await saveWeek(weekKey, yusikMenus, { hanwoo: usedHanwoo, chicken: usedChicken, p3: usedP3 });
+  const ok = await saveWeek(weekKey, yusikMenus, { hanwoo: usedHanwoo, chicken: usedChicken, p3: usedP3 }, schedule);
   // 캐시 갱신 (다음 loadHistory 호출 시 최신 반영 위해)
   if (ok) {
     try {
@@ -1265,6 +1279,17 @@ async function showHistory(forceOpen) {
   document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-light)">주차를 선택하고 [확인]을 눌러주세요</p>';
 }
 
+const DOW_NAMES = ['일','월','화','수','목','금','토'];
+function fmtDayLabel(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const m = d.getMonth() + 1, day = d.getDate(), dow = DOW_NAMES[d.getDay()];
+  return `${m}/${day} (${dow})`;
+}
+function typeLabel(t) { return t === 'hanwoo' ? '한우' : t === 'chicken' ? '닭' : '기타'; }
+function typeBg(t)    { return t === 'hanwoo' ? '#ffe8d8' : t === 'chicken' ? '#fff5d8' : '#e8f4d8'; }
+function typeColor(t) { return t === 'hanwoo' ? '#a04830' : t === 'chicken' ? '#8a7020' : '#3a7030'; }
+
 function renderSelectedWeek() {
   if (!_historyData) { document.getElementById('historyContent').innerHTML = '<p style="color:#c44">먼저 히스토리를 불러와주세요.</p>'; return; }
   const wk = document.getElementById('historyWeekSelect').value;
@@ -1273,57 +1298,85 @@ function renderSelectedWeek() {
   const veg = _historyData.yushik_veggie.find(x => x.weekKey === wk) || {hanwoo:[],chicken:[],p3:[]};
   if (!w) { document.getElementById('historyContent').innerHTML = '<p style="color:#c44">데이터를 찾을 수 없어요.</p>'; return; }
 
-  const sorted = [..._historyData.yusik].sort((a, b) => b.weekKey.localeCompare(a.weekKey));
-  const idx = sorted.findIndex(x => x.weekKey === wk);
-  const cls = `week${Math.min(idx + 1, 5)}`;
-
-  // 패널(historyContent)에 선택 주차 read-only 카드 표시 — menuContainer는 그대로 유지(이번 주 작업)
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">`;
   html += `<strong style="font-size:14px">📖 ${fmtWeekLabel(wk)} <span style="font-size:11px;color:var(--text-light);font-weight:400">· ${wk}</span></strong>`;
-  html += `<button class="btn btn-ghost" onclick="document.getElementById('historyContent').innerHTML='<p style=\\'color:var(--text-light)\\'>주차를 선택하고 [확인]을 눌러주세요</p>';document.getElementById('historyWeekSelect').value='';" style="padding:5px 12px;font-size:11px">✕ 닫기</button>`;
+  html += `<button class="btn btn-ghost" onclick="exitHistoryView()" style="padding:5px 12px;font-size:11px">✕ 닫기</button>`;
   html += `</div>`;
 
-  html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🍲 유아식 반찬 <span style="color:var(--text-light);font-weight:400">(${w.menus.length}개)</span></div>`;
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:14px">';
-  w.menus.forEach(m => {
-    html += `<div style="padding:9px 11px;background:white;border:1px solid var(--border);border-radius:8px">`;
-    html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">${m.name}</div>`;
-    if (m.ingredients) html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
-    html += '</div>';
-  });
-  html += '</div>';
-
-  // 이유식 메뉴 — 주재료 콤보를 메뉴 이름으로 재구성해서 카드로 표시
-  const buildYushikMenu = (combo, type) => {
-    const [main, sub] = (combo || '').split('|');
-    const raw = type === 'hanwoo'  ? ['한우', main, sub, '한우육수', '양파', '채소상탕'].filter(Boolean).join(', ')
-              : type === 'chicken' ? ['닭가슴살', main, sub, '닭육수', '양파', '채소상탕'].filter(Boolean).join(', ')
-              :                       [main, sub, '당근', '양파', '채소상탕'].filter(Boolean).join(', ');
-    const name = type === 'hanwoo'  ? `한우 ${main||''}`.trim()
-               : type === 'chicken' ? `닭가슴살 ${main||''}`.trim()
-               :                      `${main||''}${sub?' '+sub:''}`.trim();
-    return { name, ingredients: normalizeYushikIngredients(raw, type) };
-  };
-  const yushikMenus = [];
-  (veg.hanwoo || []).forEach(c => yushikMenus.push({ ...buildYushikMenu(c, 'hanwoo'), label: '한우' }));
-  (veg.chicken || []).forEach(c => yushikMenus.push({ ...buildYushikMenu(c, 'chicken'), label: '닭' }));
-  (veg.p3 || []).forEach(c => yushikMenus.push({ ...buildYushikMenu(c, 'other'), label: '기타' }));
-
-  if (yushikMenus.length) {
-    html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🥄 이유식 메뉴 <span style="color:var(--text-light);font-weight:400">(${yushikMenus.length}개)</span></div>`;
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">';
-    yushikMenus.forEach(m => {
-      html += `<div style="padding:9px 11px;background:white;border:1px solid var(--border);border-radius:8px">`;
-      html += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:3px">${m.label}</div>`;
-      html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">${m.name}</div>`;
-      html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
+  if (w.schedule && Array.isArray(w.schedule) && w.schedule.length) {
+    // schedule 있으면 요일별 카드로 정확히 표시
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;">';
+    w.schedule.forEach(day => {
+      const dayLabel = fmtDayLabel(day.date);
+      html += `<div style="background:white;border:1px solid var(--border);border-radius:10px;padding:12px;">`;
+      html += `<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);">${dayLabel}</div>`;
+      if (day.type === 'yusik' && day.items) {
+        html += `<div style="font-size:10px;color:var(--text-light);font-weight:700;margin-bottom:4px">🍲 유아식</div>`;
+        day.items.forEach((it, i) => {
+          html += `<div style="margin-bottom:8px;padding:6px 8px;background:#fafafa;border-radius:6px">`;
+          html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${i+1}. ${it.name}</div>`;
+          html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${it.ingredients||''}</div>`;
+          html += '</div>';
+        });
+      } else if (day.type === 'yushik' && day.menus) {
+        html += `<div style="font-size:10px;color:var(--text-light);font-weight:700;margin-bottom:4px">🥄 이유식</div>`;
+        day.menus.forEach((m, i) => {
+          const tag = typeLabel(m.type);
+          html += `<div style="margin-bottom:8px;padding:6px 8px;background:#fafafa;border-radius:6px">`;
+          html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><span style="font-size:9px;font-weight:700;background:${typeBg(m.type)};color:${typeColor(m.type)};padding:1px 6px;border-radius:8px">${tag}</span><span style="font-size:12px;font-weight:600;color:var(--text)">${m.name}</span></div>`;
+          html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${normalizeYushikIngredients(m.ingredients||'', m.type)}</div>`;
+          html += '</div>';
+        });
+      }
       html += '</div>';
     });
     html += '</div>';
+  } else {
+    // 옛 데이터 fallback — schedule 없는 경우 기존 방식 (요일 정보 없음 명시)
+    html += `<div style="font-size:11px;color:#c66;margin-bottom:10px;padding:8px 10px;background:#fff4f0;border-radius:6px;border:1px solid #f0d4c8">⚠️ 옛 형식 데이터 — 요일 정보가 없어 메뉴/재료만 표시됩니다 (다음 주 저장부터 요일별 정확 표시)</div>`;
+
+    if (w.menus && w.menus.length) {
+      html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🍲 유아식 반찬 <span style="color:var(--text-light);font-weight:400">(${w.menus.length}개)</span></div>`;
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:14px">';
+      w.menus.forEach(m => {
+        html += `<div style="padding:9px 11px;background:white;border:1px solid var(--border);border-radius:8px">`;
+        html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">${m.name}</div>`;
+        if (m.ingredients) html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    const buildYushikMenu = (combo, type) => {
+      const [main, sub] = (combo || '').split('|');
+      const raw = type === 'hanwoo'  ? ['한우', main, sub, '한우육수', '양파', '채소상탕'].filter(Boolean).join(', ')
+                : type === 'chicken' ? ['닭가슴살', main, sub, '닭육수', '양파', '채소상탕'].filter(Boolean).join(', ')
+                :                       [main, sub, '당근', '양파', '채소상탕'].filter(Boolean).join(', ');
+      const name = type === 'hanwoo'  ? `한우 ${main||''}`.trim()
+                 : type === 'chicken' ? `닭가슴살 ${main||''}`.trim()
+                 :                      `${main||''}${sub?' '+sub:''}`.trim();
+      return { name, ingredients: normalizeYushikIngredients(raw, type), type };
+    };
+    const yushikMenus = [];
+    (veg.hanwoo || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'hanwoo')));
+    (veg.chicken || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'chicken')));
+    (veg.p3 || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'other')));
+
+    if (yushikMenus.length) {
+      html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🥄 이유식 메뉴 <span style="color:var(--text-light);font-weight:400">(${yushikMenus.length}개)</span></div>`;
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">';
+      yushikMenus.forEach(m => {
+        const tag = typeLabel(m.type);
+        html += `<div style="padding:9px 11px;background:white;border:1px solid var(--border);border-radius:8px">`;
+        html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="font-size:9px;font-weight:700;background:${typeBg(m.type)};color:${typeColor(m.type)};padding:1px 6px;border-radius:8px">${tag}</span><span style="font-size:12px;font-weight:600;color:var(--text)">${m.name}</span></div>`;
+        html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
+        html += '</div>';
+      });
+      html += '</div>';
+    }
   }
 
   document.getElementById('historyContent').innerHTML = html;
-  // menuContainer(이번 주 작업)는 건드리지 않음 — 두 영역이 한 화면에 같이 보임
 }
 
 function exitHistoryView() {
