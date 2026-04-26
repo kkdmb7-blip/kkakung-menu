@@ -736,16 +736,6 @@ function restoreCurrent() {
   try {
     const saved = JSON.parse(localStorage.getItem(CUR_KEY));
     if (!saved || !saved.menu) return;
-    // 이번 주 월요일보다 오래된 저장은 자동 폐기 (지난 주차 잔여 표시 방지)
-    const today = new Date();
-    const todayDow = today.getDay(); // 0=일, 1=월
-    const daysToMon = todayDow === 0 ? -6 : 1 - todayDow;
-    const thisMon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + daysToMon);
-    const thisMonStr = thisMon.toISOString().slice(0, 10);
-    if (saved.weekStart && saved.weekStart < thisMonStr) {
-      localStorage.removeItem(CUR_KEY);
-      return;
-    }
     saved.menu.forEach(day => { day.date = new Date(day.date); });
     currentMenu = saved.menu;
     document.getElementById('weekStart').value = saved.weekStart;
@@ -1332,48 +1322,16 @@ function renderSelectedWeek() {
     });
     html += '</div>';
   } else {
-    // 옛 데이터 fallback — schedule 없는 경우 기존 방식 (요일 정보 없음 명시)
-    html += `<div style="font-size:11px;color:#c66;margin-bottom:10px;padding:8px 10px;background:#fff4f0;border-radius:6px;border:1px solid #f0d4c8">⚠️ 옛 형식 데이터 — 요일 정보가 없어 메뉴/재료만 표시됩니다 (다음 주 저장부터 요일별 정확 표시)</div>`;
-
+    // 옛 형식: 콤보가 stale(편집 후 미동기화)되어 실제 메뉴 정확 복원 불가 — 솔직한 안내만
+    html += `<div style="padding:14px;background:#fff4f0;border:1px solid #f0d4c8;border-radius:8px;color:#7a3818;font-size:12px;line-height:1.7">`;
+    html += `<strong style="font-size:13px">⚠️ 옛 형식 데이터 — 정확 복원 불가</strong><br>`;
+    html += `이 주차는 일주일 전체 schedule이 저장되지 않은 옛 형식이에요. 콤보(주재료 dedupe용)만 남아있어서 편집한 메뉴가 반영되지 않을 수 있습니다.<br><br>`;
     if (w.menus && w.menus.length) {
-      html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🍲 유아식 반찬 <span style="color:var(--text-light);font-weight:400">(${w.menus.length}개)</span></div>`;
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:14px">';
-      w.menus.forEach(m => {
-        html += `<div style="padding:9px 11px;background:white;border:1px solid var(--border);border-radius:8px">`;
-        html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">${m.name}</div>`;
-        if (m.ingredients) html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
-        html += '</div>';
-      });
-      html += '</div>';
+      html += `<strong>유아식 반찬 이름 (${w.menus.length}개):</strong><br>`;
+      html += w.menus.map(m => `· ${m.name}`).join('<br>') + '<br><br>';
     }
-
-    const buildYushikMenu = (combo, type) => {
-      const [main, sub] = (combo || '').split('|');
-      const raw = type === 'hanwoo'  ? ['한우', main, sub, '한우육수', '양파', '채소상탕'].filter(Boolean).join(', ')
-                : type === 'chicken' ? ['닭가슴살', main, sub, '닭육수', '양파', '채소상탕'].filter(Boolean).join(', ')
-                :                       [main, sub, '당근', '양파', '채소상탕'].filter(Boolean).join(', ');
-      const name = type === 'hanwoo'  ? `한우 ${main||''}`.trim()
-                 : type === 'chicken' ? `닭가슴살 ${main||''}`.trim()
-                 :                      `${main||''}${sub?' '+sub:''}`.trim();
-      return { name, ingredients: normalizeYushikIngredients(raw, type), type };
-    };
-    const yushikMenus = [];
-    (veg.hanwoo || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'hanwoo')));
-    (veg.chicken || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'chicken')));
-    (veg.p3 || []).forEach(c => yushikMenus.push(buildYushikMenu(c, 'other')));
-
-    if (yushikMenus.length) {
-      html += `<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">🥄 이유식 메뉴 <span style="color:var(--text-light);font-weight:400">(${yushikMenus.length}개)</span></div>`;
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">';
-      yushikMenus.forEach(m => {
-        const tag = typeLabel(m.type);
-        html += `<div style="padding:9px 11px;background:white;border:1px solid var(--border);border-radius:8px">`;
-        html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="font-size:9px;font-weight:700;background:${typeBg(m.type)};color:${typeColor(m.type)};padding:1px 6px;border-radius:8px">${tag}</span><span style="font-size:12px;font-weight:600;color:var(--text)">${m.name}</span></div>`;
-        html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
-        html += '</div>';
-      });
-      html += '</div>';
-    }
+    html += `<strong>다음 주차부터는</strong> 요일별·재료까지 정확하게 표시됩니다. 지금 화면에서 [💾 이번 주 저장] 한 번 다시 누르면 ${wk} 주차도 정확 복원돼요.`;
+    html += `</div>`;
   }
 
   document.getElementById('historyContent').innerHTML = html;
