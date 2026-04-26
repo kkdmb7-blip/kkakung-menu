@@ -715,12 +715,19 @@ async function generateMenu() {
 
   const dayNames = ['월','화','수','목','금'];
   const days = [];
+  // 양력 고정 공휴일 자동 처리
+  const FIXED_HOLIDAYS = new Set(['01-01','03-01','05-01','05-05','06-06','08-15','10-03','10-09','12-25']);
+  const isHoliday = d => FIXED_HOLIDAYS.has(`${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+  let yusikAssigned = false;
 
   for (let i = 0; i < 5; i++) {
     const date = new Date(monday);
     date.setDate(monday.getDate() + i);
 
-    if (i === 2) {
+    if (isHoliday(date)) {
+      days.push({ type: 'yushik', date, dayName: dayNames[i], menus: [], removed: true });
+    } else if (i === 2 && !yusikAssigned) {
+      yusikAssigned = true;
       const items = shuffledYusik.slice(0, 5);
       const soup = shuffledSoup[0];
       days.push({ type: 'yusik', date, dayName: dayNames[i], items, soup });
