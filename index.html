@@ -789,12 +789,12 @@ async function resetToSaved() {
       if (d.type === 'yusik') return { ...base, items: d.items || [], soup: d.soup || {name:'',ingredients:''} };
       return { ...base, menus: (d.menus || []).map(m => ({ ...m, displayName: m.name })) };
     });
-    localStorage.removeItem(CUR_KEY);
     document.getElementById('weekStart').value = weekKey;
     updateWeekDates();
     // 비교 모드 종료 후 단독 편집 뷰로 복원
     window._histCompareActive = false;
     window._histCompare = null;
+    persistCurrent(); // 복원된 메뉴를 CUR_KEY에 저장 → 새로고침 후에도 유지
     renderCurrentInHistory();
     showToast('↩️ DB 저장 상태로 원복됐어요');
   } catch(e) {
