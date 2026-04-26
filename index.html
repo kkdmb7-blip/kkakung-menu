@@ -203,6 +203,7 @@ pb { padding-bottom: 100px; display: block; }
   <div class="bottom-bar-actions">
     <button class="btn btn-ghost" id="conflictBtn" onclick="checkConflicts()">🔍 재료 중복 확인</button>
     <button class="btn btn-ghost" id="downloadBtn" onclick="downloadImages()">🖼️ 이미지 다운로드</button>
+    <button class="btn btn-ghost" onclick="resetToSaved()" style="color:var(--primary)">↩️ 원복</button>
     <button class="btn btn-secondary" onclick="saveMenu()">💾 이번 주 저장</button>
   </div>
 </div>
@@ -761,6 +762,44 @@ function restoreCurrent() {
     updateWeekDates();
     renderMenu();
   } catch(e) {}
+}
+
+// 임시 편집 취소 — CUR_KEY 지우고 DB 저장 데이터로 복원
+async function resetToSaved() {
+  const weekKey = document.getElementById('weekStart').value;
+  if (!weekKey) { showToast('⚠️ 날짜를 먼저 선택해주세요'); return; }
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=eq.${weekKey}&select=yusik`, { headers: SB_HEADERS });
+    if (!res.ok) throw new Error();
+    const rows = await res.json();
+    const sched = rows[0]?.yusik?.schedule;
+    if (!sched || !sched.length) {
+      // DB 저장 없으면 로컬 초기화만
+      localStorage.removeItem(CUR_KEY);
+      currentMenu = null;
+      renderMenu();
+      showToast('↩️ 초기화됐어요 (저장된 데이터 없음)');
+      return;
+    }
+    // DB schedule → currentMenu 변환
+    currentMenu = sched.map(d => {
+      const date = new Date(d.date);
+      const base = { date, dayName: '', type: d.type };
+      if (d.removed) return { ...base, removed: true, menus: [] };
+      if (d.type === 'yusik') return { ...base, items: d.items || [], soup: d.soup || {name:'',ingredients:''} };
+      return { ...base, menus: (d.menus || []).map(m => ({ ...m, displayName: m.name })) };
+    });
+    localStorage.removeItem(CUR_KEY);
+    document.getElementById('weekStart').value = weekKey;
+    updateWeekDates();
+    renderMenu();
+    showToast('↩️ DB 저장 상태로 원복됐어요');
+  } catch(e) {
+    localStorage.removeItem(CUR_KEY);
+    currentMenu = null;
+    renderMenu();
+    showToast('↩️ 로컬 초기화됐어요');
+  }
 }
 
 function renderMenu() {
