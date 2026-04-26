@@ -822,15 +822,12 @@ function renderDay(day, di) {
 
   const menusHtml = day.menus.map((menu, mi) => {
     const numClass = menu.type === 'hanwoo' ? 'hanwoo' : menu.type === 'chicken' ? 'chicken' : 'other';
-    const tagClass = menu.type === 'hanwoo' ? 'tag-hanwoo' : menu.type === 'chicken' ? 'tag-chicken' : 'tag-other';
-    const tagLabel = menu.type === 'hanwoo' ? '한우' : menu.type === 'chicken' ? '닭가슴살' : '기타단백질';
     return `
       <div class="menu-item">
         <div class="menu-num ${numClass}">${mi+1}</div>
         <div class="menu-content">
           <div class="menu-name">
             ${menu.displayName || menu.name}
-            <span class="category-tag ${tagClass}">${tagLabel}</span>
           </div>
           <div class="menu-ingredients">${highlightIngreds(normalizeYushikIngredients(menu.ingredients, menu.type))}</div>
         </div>
@@ -1371,7 +1368,7 @@ function renderDayCard(day, accentBg) {
     h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:3px">🥄 이유식</div>`;
     day.menus.forEach(m => {
       h += `<div style="margin-bottom:5px;padding:5px 7px;background:#fafafa;border-radius:5px">`;
-      h += `<div style="display:flex;align-items:center;gap:4px;margin-bottom:1px"><span style="font-size:8px;font-weight:700;background:${typeBg(m.type)};color:${typeColor(m.type)};padding:1px 5px;border-radius:6px">${typeLabel(m.type)}</span><span style="font-size:11px;font-weight:600;color:var(--text)">${m.displayName||m.name}</span></div>`;
+      h += `<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:1px">${m.displayName||m.name}</div>`;
       const ing = normalizeYushikIngredients(m.ingredients||'', m.type);
       if (ing) h += `<div style="font-size:10px;color:var(--text-light);line-height:1.4">${ing}</div>`;
       h += '</div>';
@@ -1439,9 +1436,8 @@ function renderSelectedWeek() {
       } else if (day.type === 'yushik' && day.menus) {
         html += `<div style="font-size:10px;color:var(--text-light);font-weight:700;margin-bottom:4px">🥄 이유식</div>`;
         day.menus.forEach((m, i) => {
-          const tag = typeLabel(m.type);
           html += `<div style="margin-bottom:8px;padding:6px 8px;background:#fafafa;border-radius:6px">`;
-          html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><span style="font-size:9px;font-weight:700;background:${typeBg(m.type)};color:${typeColor(m.type)};padding:1px 6px;border-radius:8px">${tag}</span><span style="font-size:12px;font-weight:600;color:var(--text)">${m.name}</span></div>`;
+          html += `<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${m.name}</div>`;
           html += `<div style="font-size:10px;color:var(--text-light);line-height:1.5">${normalizeYushikIngredients(m.ingredients||'', m.type)}</div>`;
           html += '</div>';
         });
@@ -1489,7 +1485,7 @@ function renderSelectedWeek() {
       html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">';
       yushikMenus.forEach(m => {
         html += `<div style="padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px">`;
-        html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="font-size:9px;font-weight:700;background:${typeBg(m.type)};color:${typeColor(m.type)};padding:2px 7px;border-radius:8px">${typeLabel(m.type)}</span><span style="font-size:13px;font-weight:600;color:var(--text)">${m.name}</span></div>`;
+        html += `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">${m.name}</div>`;
         html += `<div style="font-size:11px;color:var(--text-light);line-height:1.5">${m.ingredients}</div>`;
         html += '</div>';
       });
