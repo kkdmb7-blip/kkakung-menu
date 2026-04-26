@@ -1499,11 +1499,17 @@ function renderEditableDayCard(day, di, accentBg, dupeSet, dupeColorMap) {
       h += `</div></div>`;
     });
     if (day.items.length < 7) h += `<button onclick="addYusikAndRefresh(${di})" style="width:100%;padding:5px;background:none;border:1px dashed var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--text-light);margin-top:3px">+ 반찬 추가</button>`;
-    if (day.soup) {
+    {
+      const soupName = day.soup?.name || '';
+      const soupIng  = day.soup?.ingredients || '';
       h += `<div style="margin-top:6px;padding:5px 7px;background:#fafafa;border-radius:5px;display:flex;align-items:flex-start;gap:6px">`;
       h += `<div style="flex:1"><div style="font-size:10px;font-weight:600;color:var(--text-light);margin-bottom:1px">국</div>`;
-      h += `<div style="font-size:11px;font-weight:600;color:var(--text)">${day.soup.name}</div>`;
-      if (day.soup.ingredients) h += `<div style="font-size:10px;color:var(--text-light)">${day.soup.ingredients}</div>`;
+      if (soupName) {
+        h += `<div style="font-size:11px;font-weight:600;color:var(--text)">${soupName}</div>`;
+        if (soupIng) h += `<div style="font-size:10px;color:var(--text-light)">${soupIng}</div>`;
+      } else {
+        h += `<div style="font-size:11px;color:var(--text-light);font-style:italic">이름 없음 — ✏️ 눌러서 입력</div>`;
+      }
       h += `</div><button onclick="openEditSoupAndRefresh(${di})" style="background:none;border:none;font-size:12px;cursor:pointer;padding:0;opacity:0.7">✏️</button>`;
       h += '</div>';
     }
