@@ -1372,10 +1372,7 @@ function exitHistoryView() {
   document.getElementById('historyWeekSelect').value = '';
 }
 
-// 페이지 로드 시 자동으로 패널 열고 주차 목록 채움
-window.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => showHistory(true), 200);
-});
+// 히스토리 패널은 [📋 히스토리] 버튼 클릭 시에만 열림 (자동 열기 없음 — 메인 메뉴 화면 가리지 않게)
 
 function printMenu() { window.print(); }
 
