@@ -1358,7 +1358,17 @@ function typeBg(t)    { return t === 'hanwoo' ? '#ffe8d8' : t === 'chicken' ? '#
 function typeColor(t) { return t === 'hanwoo' ? '#a04830' : t === 'chicken' ? '#8a7020' : '#3a7030'; }
 
 // 일별 카드 렌더 (비교 뷰용)
-function renderDayCard(day, accentBg) {
+function highlightDupes(ingStr, dupeSet) {
+  if (!dupeSet || !dupeSet.size) return ingStr;
+  return ingStr.split(',').map(part => {
+    const t = part.trim();
+    return dupeSet.has(t)
+      ? ` <span style="color:#b84a1a;font-weight:800;text-decoration:underline">${t}</span>`
+      : part;
+  }).join(',');
+}
+
+function renderDayCard(day, accentBg, dupeSet) {
   if (!day) return `<div style="padding:14px;background:#fafafa;border:1px dashed var(--border);border-radius:8px;color:var(--text-light);font-size:11px;text-align:center;min-height:60px;display:flex;align-items:center;justify-content:center">— 없음 —</div>`;
   const dateStr = (day.date instanceof Date) ? day.date.toISOString().slice(0,10) : day.date;
   const dayLabel = fmtDayLabel(dateStr);
@@ -1369,7 +1379,7 @@ function renderDayCard(day, accentBg) {
     day.items.forEach((it, i) => {
       h += `<div style="margin-bottom:5px;padding:5px 7px;background:#fafafa;border-radius:5px">`;
       h += `<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:1px">${i+1}. ${it.name}</div>`;
-      if (it.ingredients) h += `<div style="font-size:10px;color:var(--text-light);line-height:1.4">${it.ingredients}</div>`;
+      if (it.ingredients) h += `<div style="font-size:10px;color:var(--text-light);line-height:1.4">${highlightDupes(it.ingredients, dupeSet)}</div>`;
       h += '</div>';
     });
   } else if (day.type === 'yushik' && day.menus) {
@@ -1377,7 +1387,7 @@ function renderDayCard(day, accentBg) {
     day.menus.forEach(m => {
       h += `<div style="margin-bottom:5px;padding:5px 7px;background:#fafafa;border-radius:5px">`;
       const ing = normalizeYushikIngredients(m.ingredients||'', m.type);
-      if (ing) h += `<div style="font-size:11px;font-weight:700;color:var(--text);line-height:1.4">${ing}</div>`;
+      if (ing) h += `<div style="font-size:11px;font-weight:700;color:var(--text);line-height:1.4">${highlightDupes(ing, dupeSet)}</div>`;
       if (m.midNote) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${m.midNote}</div>`;
       h += '</div>';
     });
@@ -1416,7 +1426,7 @@ function renderSelectedWeek() {
     html += `<div style="text-align:center;font-size:11px;font-weight:700;padding:6px;background:#f0eae0;border-radius:5px;color:var(--text)">전주 ${fmtWeekLabel(prevInDb.weekKey)}</div>`;
     html += `<div style="text-align:center;font-size:11px;font-weight:700;padding:6px;background:rgba(139,170,124,0.18);border-radius:5px;color:var(--text)">이번 주 ${fmtWeekLabel(wk)}</div>`;
     html += `</div>`;
-    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
+    html += `<div id="histCompareGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
     for (let i = 0; i < maxLen; i++) {
       html += renderDayCard(prevSchedule[i], '#fdfaf3');
       html += renderDayCard(thisSchedule[i], 'rgba(139,170,124,0.06)');
@@ -1515,12 +1525,11 @@ function checkHistoryDupes() {
   function extractIngreds(schedule) {
     const set = new Set();
     (schedule || []).forEach(day => {
-      // 이유식
       (day.menus || []).forEach(m => {
-        (m.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean)
+        normalizeYushikIngredients(m.ingredients||'', m.type)
+          .split(',').map(s=>s.trim()).filter(Boolean)
           .forEach(x => { if (!FIXED.has(x)) set.add(x); });
       });
-      // 유아식 반찬
       (day.items || []).forEach(it => {
         (it.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean)
           .forEach(x => { if (!FIXED.has(x)) set.add(x); });
@@ -1531,17 +1540,28 @@ function checkHistoryDupes() {
 
   const prev = extractIngreds(data.prevSchedule);
   const cur  = extractIngreds(data.thisSchedule);
-  const dupes = [...prev].filter(x => cur.has(x));
+  const dupeSet = new Set([...prev].filter(x => cur.has(x)));
 
+  // 상단 요약 표시
   const el = document.getElementById('histDupeResult');
-  if (!el) return;
-  if (!dupes.length) {
-    el.innerHTML = `<div style="padding:9px 12px;background:rgba(139,170,124,0.12);border:1px solid rgba(139,170,124,0.4);border-radius:8px;font-size:12px;color:#3a7030;font-weight:600">✅ 중복 재료 없음</div>`;
-  } else {
-    el.innerHTML = `<div style="padding:9px 12px;background:rgba(184,74,26,0.08);border:1px solid rgba(184,74,26,0.35);border-radius:8px;">
-      <div style="font-size:11px;font-weight:700;color:#b84a1a;margin-bottom:6px">⚠️ 전주와 겹치는 재료 (${dupes.length}개)</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px">${dupes.map(d=>`<span style="background:rgba(184,74,26,0.12);border:1px solid rgba(184,74,26,0.35);border-radius:12px;padding:3px 9px;font-size:11px;color:#b84a1a;font-weight:600">${d}</span>`).join('')}</div>
-    </div>`;
+  if (el) {
+    if (!dupeSet.size) {
+      el.innerHTML = `<div style="padding:8px 12px;background:rgba(139,170,124,0.12);border:1px solid rgba(139,170,124,0.4);border-radius:8px;font-size:12px;color:#3a7030;font-weight:600">✅ 중복 재료 없음</div>`;
+    } else {
+      el.innerHTML = `<div style="padding:7px 12px;background:rgba(184,74,26,0.07);border:1px solid rgba(184,74,26,0.3);border-radius:8px;font-size:11px;color:#b84a1a;font-weight:600">⚠️ ${dupeSet.size}개 재료 겹침 — 아래 메뉴에서 밑줄로 표시</div>`;
+    }
+  }
+
+  // 카드 그리드 재렌더링 (중복 재료 밑줄 표시)
+  const grid = document.getElementById('histCompareGrid');
+  if (grid && dupeSet.size) {
+    const maxLen = Math.max(data.prevSchedule.length, data.thisSchedule.length);
+    let html = '';
+    for (let i = 0; i < maxLen; i++) {
+      html += renderDayCard(data.prevSchedule[i], '#fdfaf3', dupeSet);
+      html += renderDayCard(data.thisSchedule[i], 'rgba(139,170,124,0.06)', dupeSet);
+    }
+    grid.innerHTML = html;
   }
 }
 
