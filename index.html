@@ -1601,8 +1601,8 @@ function highlightDupes(ingStr, dupeSet, dupeColorMap) {
     const t = part.trim();
     if (!dupeSet.has(t)) return part;
     const c = dupeColorMap ? dupeColorMap[t] : null;
-    if (c) return ` <span style="background:${c.bg};border:1px solid ${c.border};color:${c.text};border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;white-space:nowrap">${t}</span>`;
-    return ` <span style="background:#ffd6cc;border:1px solid #ff8c69;color:#7a2010;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700">${t}</span>`;
+    const color = c ? c.text : '#b84a1a';
+    return ` <span style="color:${color};font-weight:800">${t}</span>`;
   }).join(',');
 }
 
@@ -1644,8 +1644,8 @@ function checkHistoryDupes() {
     if (!dupeSet.size) {
       el.innerHTML = `<div style="padding:8px 12px;background:rgba(139,170,124,0.12);border:1px solid rgba(139,170,124,0.4);border-radius:8px;font-size:12px;color:#3a7030;font-weight:600">✅ 이유식 중복 재료 없음</div>`;
     } else {
-      const chips = dupes.map(d => { const c = dupeColorMap[d]; return `<span style="background:${c.bg};border:1px solid ${c.border};color:${c.text};border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">${d}</span>`; }).join('');
-      el.innerHTML = `<div style="padding:8px 12px;background:rgba(255,214,204,0.2);border:1px solid rgba(255,140,105,0.4);border-radius:8px;font-size:11px;color:#7a2010;font-weight:600;margin-bottom:6px">⚠️ 겹치는 이유식 재료 ${dupeSet.size}개 — 같은 색으로 표시</div><div style="display:flex;flex-wrap:wrap;gap:5px">${chips}</div>`;
+      const chipList = dupes.map(d => { const c = dupeColorMap[d]; return `<span style="color:${c.text};font-weight:800">${d}</span>`; }).join(', ');
+      el.innerHTML = `<div style="padding:8px 12px;background:rgba(255,214,204,0.2);border:1px solid rgba(255,140,105,0.4);border-radius:8px;font-size:11px;color:#7a2010;font-weight:600">⚠️ 겹치는 이유식 재료 ${dupeSet.size}개: ${chipList}</div>`;
     }
   }
 
