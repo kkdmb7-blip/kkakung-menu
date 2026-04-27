@@ -713,15 +713,58 @@ async function startCompare() {
     html += `</div>`;
     html += `<button class="btn btn-ghost" onclick="checkHistoryDupes()" style="width:100%;margin-bottom:10px;font-size:12px;background:rgba(122,36,24,0.08);border:1px solid rgba(122,36,24,0.35);color:var(--primary);font-weight:600">🔍 재료 중복 확인</button>`;
     html += `<div id="histDupeResult" style="margin-bottom:10px"></div>`;
-    const maxLen = Math.max(prevSchedule.length, currentMenu.length);
-    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">`;
+    // 토/일 제외 (type=holiday or day.date가 토/일인 것 제외)
+    const EXCLUDE = new Set(['한우','닭가슴살','닭고기','한우육수','닭육수','양파','채소상탕','당근','소금','물']);
+    function isWeekend(day) {
+      if (!day) return false;
+      const d = new Date(day.date);
+      return d.getDay() === 0 || d.getDay() === 6;
+    }
+    function getYushikIngreds(schedule) {
+      const set = new Set();
+      (schedule||[]).forEach(day => {
+        if (day.type !== 'yushik' || day.removed) return;
+        (day.menus||[]).forEach(m => {
+          normalizeYushikIngredients(m.ingredients||'', m.type)
+            .split(',').map(s=>s.trim()).filter(Boolean)
+            .forEach(x => { if (!EXCLUDE.has(x)) set.add(x); });
+        });
+      });
+      return set;
+    }
+    const prevIngreds = getYushikIngreds(prevSchedule);
+    const curIngreds  = getYushikIngreds(currentMenu);
+    const crossDupes  = [...prevIngreds].filter(x => curIngreds.has(x));
+
+    // 주차별 사용 야채 요약
+    function ingredsLabel(set) {
+      return set.size ? [...set].join(', ') : '없음';
+    }
+
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">`;
     html += `<div style="text-align:center;font-size:11px;font-weight:700;padding:6px;background:#f0eae0;border-radius:5px">전주 ${fmtPrev}</div>`;
     html += `<div style="text-align:center;font-size:11px;font-weight:700;padding:6px;background:rgba(139,170,124,0.18);border-radius:5px">이번 주 ${fmtCur}</div>`;
     html += `</div>`;
+    // 각 주 이유식 야채 요약
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">`;
+    html += `<div style="padding:5px 8px;background:#fdfaf3;border-radius:5px;font-size:10px;color:var(--text-light)">🥕 ${ingredsLabel(prevIngreds)}</div>`;
+    html += `<div style="padding:5px 8px;background:rgba(139,170,124,0.06);border-radius:5px;font-size:10px;color:var(--text-light)">🥕 ${ingredsLabel(curIngreds)}</div>`;
+    html += `</div>`;
+    if (crossDupes.length) {
+      html += `<div style="padding:7px 10px;background:rgba(255,214,204,0.2);border:1px solid rgba(255,140,105,0.4);border-radius:6px;font-size:11px;color:#b84a1a;font-weight:600;margin-bottom:8px">⚠️ 겹치는 야채: ${crossDupes.join(', ')}</div>`;
+    } else {
+      html += `<div style="padding:7px 10px;background:rgba(139,170,124,0.1);border:1px solid rgba(139,170,124,0.35);border-radius:6px;font-size:11px;color:#3a7030;font-weight:600;margin-bottom:8px">✅ 겹치는 야채 없음</div>`;
+    }
     html += `<div id="histCompareGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
+    // 토/일 제외하고 렌더
+    const prevFiltered = (prevSchedule||[]).filter(d => !isWeekend(d));
+    const curFiltered  = (currentMenu||[]).filter(d => !isWeekend(d));
+    const maxLen = Math.max(prevFiltered.length, curFiltered.length);
     for (let i = 0; i < maxLen; i++) {
-      html += renderDayCard(prevSchedule[i], '#fdfaf3');
-      html += currentMenu[i] ? renderEditableDayCard(currentMenu[i], i, 'rgba(139,170,124,0.06)') : renderDayCard(null, 'rgba(139,170,124,0.06)');
+      html += renderDayCard(prevFiltered[i], '#fdfaf3');
+      const cd = curFiltered[i];
+      const di = cd ? currentMenu.indexOf(cd) : -1;
+      html += cd ? renderEditableDayCard(cd, di >= 0 ? di : i, 'rgba(139,170,124,0.06)') : renderDayCard(null, 'rgba(139,170,124,0.06)');
     }
     html += `</div>`;
     document.getElementById('historyContent').innerHTML = html;
