@@ -741,20 +741,10 @@ async function startCompare() {
       return set.size ? [...set].join(', ') : '없음';
     }
 
-    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">`;
     html += `<div style="text-align:center;font-size:11px;font-weight:700;padding:6px;background:#f0eae0;border-radius:5px">전주 ${fmtPrev}</div>`;
     html += `<div style="text-align:center;font-size:11px;font-weight:700;padding:6px;background:rgba(139,170,124,0.18);border-radius:5px">이번 주 ${fmtCur}</div>`;
     html += `</div>`;
-    // 각 주 이유식 야채 요약
-    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">`;
-    html += `<div style="padding:5px 8px;background:#fdfaf3;border-radius:5px;font-size:10px;color:var(--text-light)">🥕 ${ingredsLabel(prevIngreds)}</div>`;
-    html += `<div style="padding:5px 8px;background:rgba(139,170,124,0.06);border-radius:5px;font-size:10px;color:var(--text-light)">🥕 ${ingredsLabel(curIngreds)}</div>`;
-    html += `</div>`;
-    if (crossDupes.length) {
-      html += `<div style="padding:7px 10px;background:rgba(255,214,204,0.2);border:1px solid rgba(255,140,105,0.4);border-radius:6px;font-size:11px;color:#b84a1a;font-weight:600;margin-bottom:8px">⚠️ 겹치는 야채: ${crossDupes.join(', ')}</div>`;
-    } else {
-      html += `<div style="padding:7px 10px;background:rgba(139,170,124,0.1);border:1px solid rgba(139,170,124,0.35);border-radius:6px;font-size:11px;color:#3a7030;font-weight:600;margin-bottom:8px">✅ 겹치는 야채 없음</div>`;
-    }
     html += `<div id="histCompareGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
     // 토/일 제외하고 렌더
     const prevFiltered = (prevSchedule||[]).filter(d => !isWeekend(d));
@@ -765,6 +755,18 @@ async function startCompare() {
       const cd = curFiltered[i];
       const di = cd ? currentMenu.indexOf(cd) : -1;
       html += cd ? renderEditableDayCard(cd, di >= 0 ? di : i, 'rgba(139,170,124,0.06)') : renderDayCard(null, 'rgba(139,170,124,0.06)');
+    }
+    html += `</div>`;
+    // 야채 요약 + 겹침 — 맨 아래
+    html += `<div style="margin-top:12px">`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">`;
+    html += `<div style="padding:6px 8px;background:#fdfaf3;border-radius:6px;font-size:10px;color:var(--text-light)">🥕 전주: ${ingredsLabel(prevIngreds)}</div>`;
+    html += `<div style="padding:6px 8px;background:rgba(139,170,124,0.06);border-radius:6px;font-size:10px;color:var(--text-light)">🥕 이번주: ${ingredsLabel(curIngreds)}</div>`;
+    html += `</div>`;
+    if (crossDupes.length) {
+      html += `<div style="padding:7px 10px;background:rgba(255,214,204,0.2);border:1px solid rgba(255,140,105,0.4);border-radius:6px;font-size:11px;color:#b84a1a;font-weight:600">⚠️ 겹치는 야채: ${crossDupes.join(', ')}</div>`;
+    } else {
+      html += `<div style="padding:7px 10px;background:rgba(139,170,124,0.1);border:1px solid rgba(139,170,124,0.35);border-radius:6px;font-size:11px;color:#3a7030;font-weight:600">✅ 겹치는 야채 없음</div>`;
     }
     html += `</div>`;
     document.getElementById('historyContent').innerHTML = html;
