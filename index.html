@@ -130,23 +130,29 @@ header {
 .history-badge { font-size: 10px; background: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
 pb { padding-bottom: 100px; display: block; }
 
+html, body { overflow-x: hidden; }
+
 @media (max-width: 600px) {
-  header { padding: 10px 12px; }
+  header { padding: 10px 10px; }
   .logo { font-size: 13px; white-space: nowrap; }
   .logo span { font-size: 16px; }
-  header > div { gap: 6px; flex-shrink: 0; }
-  header .btn { padding: 6px 10px; font-size: 11px; white-space: nowrap; }
+  header > div { gap: 4px; flex-shrink: 0; }
+  header .btn { padding: 6px 8px; font-size: 11px; white-space: nowrap; }
 
-  .week-selector { padding: 12px 14px; gap: 8px; }
-  .week-selector label { display: none; }
-  .week-selector input[type="date"] { padding: 6px 10px; font-size: 13px; flex: 1; min-width: 0; }
-  .week-selector span { flex-shrink: 0; }
+  .container { padding: 12px 10px; }
 
-  .bottom-bar { padding: 8px 12px; flex-wrap: nowrap; gap: 6px; }
+  .week-selector { padding: 10px 10px; gap: 5px; flex-wrap: wrap; }
+  .week-btn { padding: 6px 8px; font-size: 11px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; }
+
+  .bottom-bar { padding: 6px 10px; flex-wrap: nowrap; gap: 4px; }
   .bottom-bar-info { display: none; }
-  .bottom-bar-actions { display: flex; gap: 6px; width: 100%; }
-  .bottom-bar-actions .btn { flex: 1; padding: 8px 4px; font-size: 11px; text-align: center; white-space: nowrap; }
-  pb { padding-bottom: 70px; display: block; }
+  .bottom-bar-actions { display: flex; gap: 4px; width: 100%; }
+  .bottom-bar-actions .btn { flex: 1; padding: 7px 2px; font-size: 10px; text-align: center; white-space: nowrap; min-width: 0; }
+
+  .history-panel { padding: 12px 10px; margin-bottom: 16px; }
+  .days-grid { grid-template-columns: 1fr; gap: 12px; }
+
+  pb { padding-bottom: 60px; display: block; }
 }
 
 /* 히스토리 패널 */
