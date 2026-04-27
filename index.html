@@ -1594,7 +1594,10 @@ function renderEditableDayCard(day, di, accentBg, dupeSet, dupeColorMap) {
   h += '</div>';
 
   if (day.removed) {
-    h += `<div style="font-size:12px;color:var(--text-light);text-align:center;padding:10px 0">공휴일</div>`;
+    h += `<div style="text-align:center;padding:10px 0">
+      <div style="font-size:11px;color:var(--text-light);margin-bottom:8px">공휴일</div>
+      <button onclick="regenDay(${di})" style="background:var(--primary-light);border:1px solid #f5c5aa;color:var(--primary);border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">+ 메뉴 생성</button>
+    </div>`;
   } else if (day.type === 'yusik' && day.items) {
     h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:4px">🍲 유아식</div>`;
     day.items.forEach((it, ii) => {
