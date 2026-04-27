@@ -680,12 +680,12 @@ function getWeekMondayByOffset(offset) {
 
 function buildWeekButtons() {
   const btns = [
-    { label: '다음주', offset: 1 },
-    { label: '이번주', offset: 0 },
-    { label: '1주전', offset: -1 },
-    { label: '2주전', offset: -2 },
-    { label: '3주전', offset: -3 },
     { label: '4주전', offset: -4 },
+    { label: '3주전', offset: -3 },
+    { label: '2주전', offset: -2 },
+    { label: '1주전', offset: -1 },
+    { label: '이번주', offset: 0 },
+    { label: '다음주', offset: 1 },
   ];
   const box = document.getElementById('weekBtns');
   if (!box) return;
