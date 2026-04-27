@@ -711,7 +711,7 @@ async function startCompare() {
     html += `<strong style="font-size:14px">↔ ${fmtPrev} vs ${fmtCur}</strong>`;
     html += `<button class="btn btn-ghost" onclick="exitHistoryView()" style="padding:5px 12px;font-size:11px">✕ 닫기</button>`;
     html += `</div>`;
-    html += `<button class="btn btn-ghost" onclick="checkHistoryDupes()" style="width:100%;margin-bottom:10px;font-size:12px;border:1px solid rgba(122,36,24,0.3)">🔍 재료 중복 확인</button>`;
+    html += `<button class="btn btn-ghost" onclick="checkHistoryDupes()" style="width:100%;margin-bottom:10px;font-size:12px;background:rgba(122,36,24,0.08);border:1px solid rgba(122,36,24,0.35);color:var(--primary);font-weight:600">🔍 재료 중복 확인</button>`;
     html += `<div id="histDupeResult" style="margin-bottom:10px"></div>`;
     const maxLen = Math.max(prevSchedule.length, currentMenu.length);
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">`;
@@ -1708,7 +1708,7 @@ function renderSelectedWeek() {
   html += `</div>`;
 
   if (hasComparison) {
-    html += `<button class="btn btn-ghost" onclick="checkHistoryDupes()" style="width:100%;margin-bottom:10px;font-size:12px;border:1px solid rgba(122,36,24,0.3)">🔍 전주 vs 이번 주 재료 중복 확인</button>`;
+    html += `<button class="btn btn-ghost" onclick="checkHistoryDupes()" style="width:100%;margin-bottom:10px;font-size:12px;background:rgba(122,36,24,0.08);border:1px solid rgba(122,36,24,0.35);color:var(--primary);font-weight:600">🔍 전주 vs 이번 주 재료 중복 확인</button>`;
     html += `<div id="histDupeResult" style="margin-bottom:10px"></div>`;
     const maxLen = Math.max(prevSchedule.length, thisSchedule.length);
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">`;
