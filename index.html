@@ -177,15 +177,9 @@ pb { padding-bottom: 100px; display: block; }
   <div class="week-selector" id="weekBtns"></div>
 
   <div id="historyPanel" style="display:block" class="history-panel">
-    <h4>📚 지난 주차 메뉴 — 비교 보기</h4>
-    <div id="historyQuickButtons" style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;"></div>
-    <div id="historyControls" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
-      <select id="historyWeekSelect" onchange="if(this.value)renderSelectedWeek()" style="flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:white;font-family:inherit;">
-        <option value="">그 외 주차 선택...</option>
-      </select>
-    </div>
-    <div style="font-size:11px;color:var(--text-light);margin-bottom:10px;line-height:1.6">⬇️ 선택한 주차는 위에 표시되고, 이번 주 작업 메뉴는 그대로 아래에 유지됩니다 — 동시에 비교하면서 새 메뉴 만들 수 있어요</div>
-    <div id="historyContent" style="font-size:13px;color:var(--text-light);">주차를 선택해주세요</div>
+    <div id="historyQuickButtons" style="display:none"></div>
+    <select id="historyWeekSelect" style="display:none"></select>
+    <div id="historyContent" style="font-size:13px;color:var(--text-light);"></div>
   </div>
 
   <div id="menuContainer" class="menu-container-hidden">
