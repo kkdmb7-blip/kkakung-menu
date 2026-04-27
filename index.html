@@ -1487,13 +1487,7 @@ async function showHistory(forceOpen) {
     return `<button onclick="quickSelectWeek('${w.weekKey}')" data-week="${w.weekKey}" class="hist-quick-btn" style="padding:8px 14px;border:1px solid ${border};background:${bg};border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">${label}</button>`;
   }).join('');
 
-  if (rest.length) {
-    sel.innerHTML = '<option value="">그 외 주차 선택...</option>' + rest.map(w => `<option value="${w.weekKey}">${fmtWeekLabel(w.weekKey)}</option>`).join('');
-    sel.disabled = false;
-    sel.parentElement.style.display = 'flex';
-  } else {
-    sel.parentElement.style.display = 'none';
-  }
+  // sel은 hidden — 표시/숨김 제어 불필요
   // 버튼 로드 후 현재 메뉴 단독 뷰 표시
   renderCurrentInHistory();
 }
