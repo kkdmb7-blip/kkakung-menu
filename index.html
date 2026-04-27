@@ -696,7 +696,45 @@ function buildWeekButtons() {
     const mmdd = `${mon.getMonth()+1}/${mon.getDate()}`;
     const isActive = wk === curWk;
     return `<button class="week-btn${isActive?' active':''}" onclick="selectWeekBtn('${wk}')" data-wk="${wk}">${b.label}<span style="font-size:10px;opacity:0.7;margin-left:3px">${mmdd}</span></button>`;
-  }).join('');
+  }).join('') +
+  `<button class="week-btn" onclick="startCompare()" style="margin-left:auto;border-color:rgba(122,36,24,0.4);color:var(--primary);font-weight:700">↔ 전주 비교</button>`;
+}
+
+// 현재 weekStart 기준 직전 저장 주차와 비교 모드 진입
+async function startCompare() {
+  const wk = document.getElementById('weekStart').value;
+  if (!wk) { showToast('⚠️ 먼저 주차를 선택해주세요'); return; }
+  if (!currentMenu) { showToast('⚠️ 이번 주 메뉴를 먼저 불러와주세요'); return; }
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=like.20*&select=id,yusik&order=id.desc`, { headers: SB_HEADERS });
+    const rows = await res.json();
+    const prevRow = rows.find(r => r.id < wk && r.yusik?.schedule?.length);
+    if (!prevRow) { showToast('비교할 이전 저장 주차가 없어요'); return; }
+    const prevSchedule = prevRow.yusik.schedule;
+    const fmtPrev = fmtWeekLabel(prevRow.id);
+    const fmtCur  = fmtWeekLabel(wk);
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">`;
+    html += `<strong style="font-size:14px">↔ ${fmtPrev} vs ${fmtCur}</strong>`;
+    html += `<button class="btn btn-ghost" onclick="exitHistoryView()" style="padding:5px 12px;font-size:11px">✕ 닫기</button>`;
+    html += `</div>`;
+    html += `<button class="btn btn-ghost" onclick="checkHistoryDupes()" style="width:100%;margin-bottom:10px;font-size:12px;border:1px solid rgba(122,36,24,0.3)">🔍 재료 중복 확인</button>`;
+    html += `<div id="histDupeResult" style="margin-bottom:10px"></div>`;
+    const maxLen = Math.max(prevSchedule.length, currentMenu.length);
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">`;
+    html += `<div style="text-align:center;font-size:11px;font-weight:700;padding:6px;background:#f0eae0;border-radius:5px">전주 ${fmtPrev}</div>`;
+    html += `<div style="text-align:center;font-size:11px;font-weight:700;padding:6px;background:rgba(139,170,124,0.18);border-radius:5px">이번 주 ${fmtCur}</div>`;
+    html += `</div>`;
+    html += `<div id="histCompareGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
+    for (let i = 0; i < maxLen; i++) {
+      html += renderDayCard(prevSchedule[i], '#fdfaf3');
+      html += currentMenu[i] ? renderEditableDayCard(currentMenu[i], i, 'rgba(139,170,124,0.06)') : renderDayCard(null, 'rgba(139,170,124,0.06)');
+    }
+    html += `</div>`;
+    document.getElementById('historyContent').innerHTML = html;
+    window._histCompare = { prevSchedule, thisSchedule: currentMenu };
+    window._histCompareActive = true;
+    document.getElementById('historyPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e) { showToast('비교 로드 실패'); }
 }
 
 async function selectWeekBtn(weekKey) {
