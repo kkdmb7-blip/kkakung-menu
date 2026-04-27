@@ -1596,7 +1596,7 @@ function renderEditableDayCard(day, di, accentBg, dupeSet, dupeColorMap) {
   if (day.removed) {
     h += `<div style="text-align:center;padding:10px 0">
       <div style="font-size:11px;color:var(--text-light);margin-bottom:8px">공휴일</div>
-      <button onclick="regenDay(${di})" style="background:var(--primary-light);border:1px solid #f5c5aa;color:var(--primary);border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">+ 메뉴 생성</button>
+      <button onclick="regenDay(${di})" style="background:var(--primary);border:none;color:white;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">+ 메뉴 생성</button>
     </div>`;
   } else if (day.type === 'yusik' && day.items) {
     h += `<div style="font-size:9px;color:var(--text-light);font-weight:700;margin-bottom:4px">🍲 유아식</div>`;
@@ -2052,8 +2052,8 @@ document.addEventListener('click', e => {
 
 initDatePicker();
 restoreCurrent();
-// 히스토리 항상 표시 — 페이지 로드 시 주차 버튼 자동 채움
-showHistory(true);
+// 페이지 로드 시 이번주 데이터 자동 로드 (CUR_KEY 없으면 DB에서)
+selectWeekBtn(document.getElementById('weekStart').value);
 </script>
 </body>
 </html>
