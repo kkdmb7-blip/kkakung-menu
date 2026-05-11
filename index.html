@@ -2129,22 +2129,57 @@ function printMenuTable() {
     { label: '와구와구<br>완 &nbsp;료 &nbsp;기', sub: '( 14 개월 ~ )' },
   ];
 
+  // 타입별 고정 suffix 재료
+  const TYPE_SUFFIX = {
+    hanwoo:   ['한우육수', '양파', '채소상탕'],
+    chicken:  ['닭육수', '양파', '채소상탕'],
+    p3:       ['양파', '채소상탕'],
+    protein3: ['양파', '채소상탕'],
+  };
+
+  // 원산지 고정 매핑
+  const FOREIGN_ORIGIN = {
+    '파로':'이탈리아', '아보카도':'페루', '아마란스':'페루', '퀴노아':'페루',
+    '단호박':'뉴질랜드', '렌틸콩':'캐나다', '오트밀':'캐나다',
+    '햄프시드':'캐나다', '캐슈넛':'베트남', '치아씨드':'멕시코',
+  };
+
   // 메뉴 이름 → 주재료 2개만 (긴 이름 방지)
   function shortName(name) {
     const n = name.replace(/\s*(죽|무른밥|진밥)(\/무른밥\/진밥)?$/, '').trim();
-    const parts = n.split(/[\s\/]+/);
-    // 첫 2개 토큰만 (주단백질 + 주채소)
+    const parts = n.split(/[\s\/]+/).filter(Boolean);
+    // 첫 2개 토큰만 (주단백질 + 주채소1)
     return parts.slice(0, 2).join(' ');
   }
 
+  // 재료 정렬: 제목 등장 순서 → 나머지 → 고정 suffix
+  function sortIngred(ingStr, menuName, mtype) {
+    const suffix = TYPE_SUFFIX[mtype] || ['양파', '채소상탕'];
+    const allParts = ingStr.split(',').map(s=>s.trim()).filter(Boolean);
+
+    // 제목에 등장한 토큰 순서 추출
+    const nameParts = menuName.replace(/\s*(죽|무른밥|진밥).*$/, '').trim().split(/\s+/);
+
+    // suffix 없으면 추가
+    suffix.forEach(s => { if (!allParts.includes(s)) allParts.push(s); });
+
+    // suffix를 뒤로 빼고 나머지 정렬
+    const body = allParts.filter(s => !suffix.includes(s));
+
+    // 제목 등장 순서대로 앞으로
+    const ordered = [];
+    nameParts.forEach(np => {
+      const found = body.find(b => b === np || b.startsWith(np) || np.startsWith(b));
+      if (found && !ordered.includes(found)) ordered.push(found);
+    });
+    body.forEach(b => { if (!ordered.includes(b)) ordered.push(b); });
+
+    return [...ordered, ...suffix];
+  }
+
   // 재료 2개씩 묶어서 줄바꿈
-  function formatIngred(ingStr, mtype) {
-    let parts = ingStr.split(',').map(s => s.trim()).filter(Boolean);
-    // p3(기타단백질): 양파·채소상탕 없으면 보장
-    if (mtype === 'protein3' || mtype === 'p3') {
-      if (!parts.includes('양파')) parts.push('양파');
-      if (!parts.includes('채소상탕')) parts.push('채소상탕');
-    }
+  function formatIngred(ingStr, mtype, menuName) {
+    const parts = sortIngred(ingStr, menuName || '', mtype);
     const lines = [];
     for (let i = 0; i < parts.length; i += 2) {
       lines.push(parts.slice(i, i+2).join(', '));
@@ -2154,16 +2189,14 @@ function printMenuTable() {
 
   // 원산지 자동생성 (직접 입력 없을 때)
   function autoOrigins(menus) {
-    const FIXED = ['한우육수','닭육수','채소상탕','양파'];
+    const FIXED_SKIP = ['한우육수','닭육수','채소상탕','양파'];
     const all = [];
     menus.forEach(m => {
       m.ingredients.split(',').map(s=>s.trim()).filter(Boolean)
-        .filter(s => !FIXED.includes(s))
+        .filter(s => !FIXED_SKIP.includes(s))
         .forEach(s => { if (!all.includes(s)) all.push(s); });
     });
-    // 원산지 접미사 (파로=이탈리아, 나머지=국내산)
-    const FOREIGN = { '파로':'이탈리아', '아마란스':'페루', '퀴노아':'페루' };
-    return all.map(s => s + (FOREIGN[s] || '국내산')).join(', ');
+    return all.map(s => s + (FOREIGN_ORIGIN[s] || '국내산')).join(', ');
   }
 
   const pages = yushikDays.map(day => {
@@ -2187,7 +2220,7 @@ function printMenuTable() {
             <div class="menu-name-row" style="background:${ROW_COLORS[ri]}">
               <b contenteditable="true" spellcheck="false">${NUMS[ri][mi]} ${menuName} ${SUFFIX[ri]}</b>
             </div>
-            <div class="ingred-cell" contenteditable="true" spellcheck="false">${formatIngred(ingStr, mtype)}</div>
+            <div class="ingred-cell" contenteditable="true" spellcheck="false">${formatIngred(ingStr, mtype, rawName)}</div>
           </td>`;
         }).join('')}
       </tr>`).join('');
@@ -2239,8 +2272,8 @@ function printMenuTable() {
   .stage-name { font-size: 13px; font-weight: 800; line-height: 1.7; }
   .stage-sub { font-size: 11px; color: #666; margin-top: 4px; }
   .menu-col { padding: 0; vertical-align: top; }
-  .menu-name-row { font-size: 13px; font-weight: 800; padding: 8px 4px; border-bottom: 1px solid #ccc; }
-  .ingred-cell { padding: 10px 6px; font-size: 12px; line-height: 1.75; color: #444; text-align: center; }
+  .menu-name-row { font-size: 13px; font-weight: 800; padding: 8px 4px; border-bottom: 1px solid #ccc; height: 38px; display: flex; align-items: center; justify-content: center; }
+  .ingred-cell { padding: 10px 6px; font-size: 12px; line-height: 1.75; color: #444; text-align: center; height: 92px; overflow: hidden; }
   .origins { font-size: 11px; color: #888; margin-bottom: 6px; text-align: left; width: 100%; }
   .slogan { font-size: 14px; font-weight: 800; color: #3a8a3a; text-align: center; margin-top: 4px; }
   .page-break { page-break-after: always; }
