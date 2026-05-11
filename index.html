@@ -2113,16 +2113,15 @@ async function downloadImages() {
   }
 }
 
-// ===== 메뉴표 인쇄 (HWP 포맷 동일 레이아웃) =====
+// ===== 메뉴표 인쇄 (이유식 + 유아식, A4 2개씩) =====
 function printMenuTable() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
 
-  const yushikDays = currentMenu.filter(d => d.type === 'yushik' && !d.removed);
-  if (!yushikDays.length) { showToast('⚠️ 이유식 메뉴가 없어요'); return; }
+  const allDays = currentMenu.filter(d => !d.removed);
+  if (!allDays.length) { showToast('⚠️ 메뉴가 없어요'); return; }
 
-  const SUFFIX = ['죽', '무른밥', '진밥'];
+  const SUFFIX_ARR = ['죽', '무른밥', '진밥'];
   const NUMS = [['1.','2.','3.'],['4.','5.','6.'],['7.','8.','9.']];
-  // 단계별 가로색상 (행 기준)
   const ROW_COLORS = ['#c8e6c0', '#b8d4e8', '#f5d8b8'];
   const STAGES = [
     { label: '오물오물<br>중 &nbsp; 기', sub: '( 7 ~ 9 개월 )' },
@@ -2188,123 +2187,178 @@ function printMenuTable() {
     return lines.map(l => `<div>${l}</div>`).join('');
   }
 
-  // 원산지 자동생성 (직접 입력 없을 때)
+  // 원산지 자동생성: 메뉴당 3개만(suffix제외), 메뉴 재료 순서대로
   function autoOrigins(menus) {
-    const FIXED_SKIP = ['한우육수','닭육수','채소상탕','양파'];
-    const all = [];
-    menus.forEach(m => {
-      m.ingredients.split(',').map(s=>s.trim()).filter(Boolean)
-        .filter(s => !FIXED_SKIP.includes(s))
-        .forEach(s => { if (!all.includes(s)) all.push(s); });
+    const SFX_ALL = ['한우육수','닭육수','채소상탕','양파'];
+    const seen = new Set();
+    const result = [];
+    (menus||[]).forEach(m => {
+      const sfx = TYPE_SUFFIX[m.type] || [];
+      const ordered = sortIngred(m.ingredients||'', m.displayName||m.name||'', m.type);
+      const body = ordered.filter(s => !SFX_ALL.includes(s));
+      body.slice(0, 3).forEach(s => {
+        if (!seen.has(s)) { seen.add(s); result.push(s + (FOREIGN_ORIGIN[s] || '국내산')); }
+      });
     });
-    return all.map(s => s + (FOREIGN_ORIGIN[s] || '국내산')).join(', ');
+    return result.join(', ');
   }
 
-  const pages = yushikDays.map(day => {
-    const menus = day.menus || [];
-    const origins = day.origins || autoOrigins(menus);
+  // 유아식 카드 생성
+  function yusikCardHtml(day) {
+    const items = day.items || [];
+    const soup = day.soup || {};
     const dateStr = formatKorDate(day.date);
-
-    const rows = STAGES.map((stg, ri) => `
-      <tr>
-        <td class="stage-col" style="background:${ROW_COLORS[ri]}20">
-          <div class="stage-name">${stg.label}</div>
-          <div class="stage-sub">${stg.sub}</div>
-        </td>
-        ${menus.map((m, mi) => {
-          const rawName = m.displayName || m.name || '';
-          const menuName = shortName(rawName);
-          const ingStr = m.ingredients || '';
-          const mtype = m.type || '';
-          return `
-          <td class="menu-col">
-            <div class="menu-name-row" style="background:${ROW_COLORS[ri]}">
-              <b contenteditable="true" spellcheck="false">${NUMS[ri][mi]} ${menuName} ${SUFFIX[ri]}</b>
-            </div>
-            <div class="ingred-cell" contenteditable="true" spellcheck="false">${formatIngred(ingStr, mtype, rawName)}</div>
-          </td>`;
-        }).join('')}
-      </tr>`).join('');
-
+    const HDR_C = '#95c98a'; const SOUP_C = '#82b8d4';
+    const makeRow = (idxArr) => `<tr>${idxArr.map(idx => {
+      const it = items[idx] || {};
+      const lines = (it.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
+      const grouped = []; for(let i=0;i<lines.length;i+=2) grouped.push(lines.slice(i,i+2).join(', '));
+      return `<td class="menu-col" style="width:${idxArr.length===2?'50%':'33.3%'}"><div class="menu-name-row" style="background:${HDR_C}"><b contenteditable="true" spellcheck="false">${idx+1}. ${it.name||''}</b></div><div class="ingred-cell" contenteditable="true" spellcheck="false">${grouped.map(l=>`<div>${l}</div>`).join('')}</div></td>`;
+    }).join('')}</tr>`;
+    const sLines = (soup.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const sg = []; for(let i=0;i<sLines.length;i+=2) sg.push(sLines.slice(i,i+2).join(', '));
+    const ori = items.slice(0,5).map(it=>{
+      const p=(it.ingredients||'').split(',').map(s=>s.trim()).filter(s=>s&&!['양파','채소상탕'].includes(s));
+      return p[0]?(p[0]+(FOREIGN_ORIGIN[p[0]]||'국내산')):'';
+    }).filter(Boolean).join(', ');
     return `
-      <div class="page">
-        <div class="logo-row">
-          <div class="char-img">🍚</div>
-          <div class="title" contenteditable="true" spellcheck="false">까꿍 &nbsp;디미방 &nbsp;${dateStr} &nbsp;이유식 &nbsp;메뉴표</div>
+      <div class="logo-row"><div class="char-img">🥘</div>
+        <div class="title" contenteditable="true" spellcheck="false">까꿍 디미방 ${dateStr} 유아식 메뉴표</div>
+      </div>
+      <table class="menu-table"><tbody>${makeRow([0,1,2])}${makeRow([3,4])}</tbody></table>
+      <table class="menu-table"><tbody><tr><td class="menu-col" colspan="3">
+        <div class="menu-name-row" style="background:${SOUP_C}"><b contenteditable="true" spellcheck="false">6. 국 &nbsp;${soup.name||''}</b></div>
+        <div class="ingred-cell" contenteditable="true" spellcheck="false">${sg.map(l=>`<div>${l}</div>`).join('')}</div>
+      </td></tr></tbody></table>
+      <div class="origins" contenteditable="true" spellcheck="false">${ori}</div>
+      <div class="slogan" contenteditable="true" spellcheck="false">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>`;
+  }
+
+  // 유아식 카드 함수
+  function yusikCardHtml(day) {
+    const items = day.items || [];
+    const soup = day.soup || {};
+    const dateStr = formatKorDate(day.date);
+    const HDR = '#95c98a'; const SOUP = '#82b8d4';
+    const grps = [[0,1,2],[3,4]];
+    const itemRows = grps.map(g => `<tr>${g.map(idx => {
+      const it = items[idx] || {};
+      const lines = (it.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
+      const grouped = []; for(let i=0;i<lines.length;i+=2) grouped.push(lines.slice(i,i+2).join(', '));
+      return `<td class="menu-col" style="width:${g.length===2?'50%':'33.3%'}">
+        <div class="menu-name-row" style="background:${HDR}"><b contenteditable="true" spellcheck="false">${idx+1}. ${it.name||''}</b></div>
+        <div class="ingred-cell" contenteditable="true" spellcheck="false">${grouped.map(l=>`<div>${l}</div>`).join('')}</div>
+      </td>`;
+    }).join('')}</tr>`).join('');
+    const sL = (soup.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const sG = []; for(let i=0;i<sL.length;i+=2) sG.push(sL.slice(i,i+2).join(', '));
+    const ori = items.slice(0,5).map(it=>{
+      const p=(it.ingredients||'').split(',').map(s=>s.trim()).filter(s=>s&&!['양파','채소상탕'].includes(s));
+      return p[0]?(p[0]+(FOREIGN_ORIGIN[p[0]]||'국내산')):'';
+    }).filter(Boolean).join(', ');
+    return `<div class="card">
+      <div class="logo-row"><span class="char-img">🥘</span>
+        <span class="title" contenteditable="true" spellcheck="false">까꿍 디미방 ${dateStr} 유아식 메뉴표</span>
+      </div>
+      <table class="menu-table"><tbody>${itemRows}</tbody></table>
+      <table class="menu-table"><tbody><tr><td class="menu-col" colspan="3">
+        <div class="menu-name-row" style="background:${SOUP}"><b contenteditable="true" spellcheck="false">6. 국 ${soup.name||''}</b></div>
+        <div class="ingred-cell" contenteditable="true" spellcheck="false">${sG.map(l=>`<div>${l}</div>`).join('')}</div>
+      </td></tr></tbody></table>
+      <div class="origins" contenteditable="true" spellcheck="false">${ori}</div>
+      <div class="slogan" contenteditable="true" spellcheck="false">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>
+    </div>`;
+  }
+
+  // 모든 날 카드 생성 (이유식+유아식 혼합)
+  const allCards = allDays.map(day => {
+    if (day.type === 'yushik') {
+      const menus = day.menus || [];
+      const origins = day.origins || autoOrigins(menus);
+      const dateStr = formatKorDate(day.date);
+
+      const rows = STAGES.map((stg, ri) => `
+        <tr>
+          <td class="stage-col" style="background:${ROW_COLORS[ri]}40">
+            <div class="stage-name">${stg.label}</div>
+            <div class="stage-sub">${stg.sub}</div>
+          </td>
+          ${menus.map((m, mi) => {
+            const rawName = m.displayName || m.name || '';
+            const menuName = shortName(rawName);
+            return `<td class="menu-col">
+              <div class="menu-name-row" style="background:${ROW_COLORS[ri]}"><b contenteditable="true" spellcheck="false">${NUMS[ri][mi]} ${menuName} ${SUFFIX_ARR[ri]}</b></div>
+              <div class="ingred-cell" contenteditable="true" spellcheck="false">${formatIngred(m.ingredients||'', m.type||'', rawName)}</div>
+            </td>`;
+          }).join('')}
+        </tr>`).join('');
+
+      return `<div class="card">
+        <div class="logo-row"><span class="char-img">🍚</span>
+          <span class="title" contenteditable="true" spellcheck="false">까꿍 디미방 ${dateStr} 이유식 메뉴표</span>
         </div>
         <table class="menu-table">
-          <colgroup>
-            <col style="width:13%">
-            <col style="width:29%">
-            <col style="width:29%">
-            <col style="width:29%">
-          </colgroup>
-          <thead>
-            <tr>
-              <th class="hdr-stage">단 &nbsp; 계</th>
-              <th class="hdr-menu" colspan="3">메 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;뉴</th>
-            </tr>
-          </thead>
+          <colgroup><col style="width:13%"><col style="width:29%"><col style="width:29%"><col style="width:29%"></colgroup>
+          <thead><tr><th class="hdr-stage">단 &nbsp; 계</th><th class="hdr-menu" colspan="3">메 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;뉴</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
         <div class="origins" contenteditable="true" spellcheck="false">${origins}</div>
         <div class="slogan" contenteditable="true" spellcheck="false">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>
       </div>`;
-  }).join('<div class="page-break"></div>');
+    }
+    // 유아식
+    if (day.type === 'yusik') return yusikCardHtml(day);
+    return '';
+  });
 
-  const html = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<title>까꿍디미방 이유식 메뉴표</title>
+  // 2개씩 A4 한 장
+  let pagesHtml = '';
+  for (let i = 0; i < allCards.length; i += 2) {
+    pagesHtml += `<div class="a4-page">${allCards[i]||''}${allCards[i+1]||''}</div>`;
+  }
+
+  const html = `<!DOCTYPE html><html lang="ko"><head>
+<meta charset="UTF-8"><title>까꿍디미방 메뉴표</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Nanum Gothic', 'NanumGothic', sans-serif; background: #fff; color: #222; font-size: 13px; }
-  .page { width: 210mm; min-height: 297mm; padding: 18mm 16mm; display: flex; flex-direction: column; align-items: center; }
-  .logo-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
-  .char-img { font-size: 42px; }
-  .title { font-size: 22px; font-weight: 800; letter-spacing: 0.05em; }
-  .menu-table { width: 100%; border-collapse: collapse; border: 2px solid #888; margin-bottom: 12px; }
-  .menu-table th, .menu-table td { border: 1px solid #aaa; text-align: center; vertical-align: middle; }
-  .hdr-stage { background: #6aaa60; color: white; font-size: 14px; font-weight: 800; padding: 10px 4px; }
-  .hdr-menu { background: #6aaa60; color: white; font-size: 14px; font-weight: 800; padding: 10px 4px; }
-  .stage-col { background: #f5f4ee; padding: 14px 6px; width: 13%; }
-  .stage-name { font-size: 13px; font-weight: 800; line-height: 1.7; }
-  .stage-sub { font-size: 11px; color: #666; margin-top: 4px; }
-  .menu-col { padding: 0; vertical-align: top; }
-  .menu-name-row { font-size: 13px; font-weight: 800; padding: 8px 4px; border-bottom: 1px solid #ccc; height: 38px; display: flex; align-items: center; justify-content: center; }
-  .ingred-cell { padding: 10px 6px; font-size: 12px; line-height: 1.75; color: #444; text-align: center; height: 92px; overflow: hidden; }
-  .origins { font-size: 11px; color: #888; margin-bottom: 6px; text-align: left; width: 100%; }
-  .slogan { font-size: 14px; font-weight: 800; color: #3a8a3a; text-align: center; margin-top: 4px; }
-  .page-break { page-break-after: always; }
-  .no-print { display: flex; gap: 10px; justify-content: center; padding: 16px; position: sticky; top: 0; background: #f5f5f5; z-index: 10; border-bottom: 1px solid #ddd; }
-  .no-print button { padding: 10px 24px; font-size: 14px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; }
-  .btn-print { background: #2a7a2a; color: white; }
-  .btn-close { background: #ddd; color: #555; }
-  /* 편집 가능 셀 표시 */
-  [contenteditable]:hover { outline: 2px dashed #6aaa60; outline-offset: 2px; cursor: text; }
-  [contenteditable]:focus { outline: 2px solid #2a7a2a; outline-offset: 2px; background: #fffde8; }
-  .edit-hint { font-size: 11px; color: #999; text-align: center; padding: 4px; }
-  @media print {
-    .no-print { display: none !important; }
-    .edit-hint { display: none !important; }
-    .page { padding: 14mm 12mm; }
-    .page-break { page-break-after: always; break-after: page; }
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    [contenteditable] { outline: none !important; background: transparent !important; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Nanum Gothic',sans-serif;background:#fff;color:#222;font-size:11px;}
+  .a4-page{width:210mm;height:297mm;padding:7mm 10mm;display:flex;flex-direction:column;gap:5mm;page-break-after:always;overflow:hidden;}
+  .card{flex:1;display:flex;flex-direction:column;min-height:0;}
+  .logo-row{display:flex;align-items:center;gap:8px;margin-bottom:2mm;}
+  .char-img{font-size:26px;}
+  .title{font-size:15px;font-weight:800;letter-spacing:0.03em;}
+  .menu-table{width:100%;border-collapse:collapse;border:1.5px solid #888;flex:1;}
+  .menu-table th,.menu-table td{border:1px solid #bbb;text-align:center;vertical-align:middle;}
+  .hdr-stage,.hdr-menu{background:#6aaa60;color:white;font-size:10px;font-weight:800;padding:4px 2px;}
+  .stage-col{background:#f5f5ee;padding:4px 2px;width:13%;}
+  .stage-name{font-size:9.5px;font-weight:800;line-height:1.55;}
+  .stage-sub{font-size:8px;color:#666;margin-top:2px;}
+  .menu-col{padding:0;vertical-align:top;}
+  .menu-name-row{font-size:10px;font-weight:800;padding:4px 2px;border-bottom:1px solid #ccc;height:24px;display:flex;align-items:center;justify-content:center;}
+  .ingred-cell{padding:4px 3px;font-size:9px;line-height:1.6;color:#444;text-align:center;height:66px;overflow:hidden;}
+  .origins{font-size:8.5px;color:#888;margin:1.5mm 0 0.5mm;text-align:left;}
+  .slogan{font-size:10px;font-weight:800;color:#3a8a3a;text-align:center;}
+  .no-print{display:flex;gap:10px;justify-content:center;padding:10px;background:#f5f5f5;position:sticky;top:0;z-index:10;border-bottom:1px solid #ddd;}
+  .no-print button{padding:8px 18px;font-size:13px;font-weight:700;border:none;border-radius:6px;cursor:pointer;font-family:inherit;}
+  .bp{background:#2a7a2a;color:white;} .bc{background:#ddd;color:#555;}
+  .hint{font-size:10px;color:#aaa;text-align:center;padding:3px;}
+  [contenteditable]:hover{outline:1px dashed #6aaa60;cursor:text;}
+  [contenteditable]:focus{outline:1px solid #2a7a2a;background:#fffde8;}
+  @media print{
+    .no-print,.hint{display:none!important;}
+    .a4-page{padding:6mm 9mm;}
+    body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    [contenteditable]{outline:none!important;background:transparent!important;}
   }
-</style>
-</head>
-<body>
+</style></head><body>
 <div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
-  <button class="btn-close" onclick="window.close()">닫기</button>
+  <button class="bp" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+  <button class="bc" onclick="window.close()">닫기</button>
 </div>
-<div class="edit-hint">✏️ 내용을 직접 클릭하면 수정할 수 있어요 — 수정 후 인쇄하세요</div>
-${pages}
-</body>
-</html>`;
+<div class="hint">✏️ 텍스트 클릭하면 수정 가능 &nbsp;|&nbsp; A4 한 장에 2일분</div>
+${pagesHtml}
+</body></html>`;
 
   const w = window.open('', '_blank', 'width=900,height=700');
   w.document.write(html);
