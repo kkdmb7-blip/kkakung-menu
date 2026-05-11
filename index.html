@@ -2214,11 +2214,23 @@ function printMenuTable() {
       const ingP = (it.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
       const nonS = ingP.filter(s=>!['양파','채소상탕'].includes(s));
       const sfxP = ingP.filter(s=>['양파','채소상탕'].includes(s));
-      const oriP = nonS.slice(0,3).map(s=>s+(FORG[s]||'국내산'));
+      // 메뉴명 첫 글자와 매칭되는 재료를 맨 앞으로 정렬
+      const fc = (it.name||'').slice(0,1);
+      const sortedNonS = [...nonS].sort((a,b)=>(a.startsWith(fc)?-1:0)-(b.startsWith(fc)?-1:0));
+      const oriP = sortedNonS.slice(0,3).map(s=>s+(FORG[s]||'국내산'));
+      const allIng = [...sortedNonS,...sfxP];
+      // 5개 이상이면 2줄로 균등 분할
+      let ingHtml;
+      if (allIng.length >= 5) {
+        const mid = Math.ceil(allIng.length/2);
+        ingHtml = '<div>('+allIng.slice(0,mid).join(', ')+')</div><div>('+allIng.slice(mid).join(', ')+')</div>';
+      } else {
+        ingHtml = '<div>('+allIng.join(', ')+')</div>';
+      }
       return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
         +'<div style="background:'+HC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false">'+(idx+1)+'. '+(it.name||'')+'</div>'
-        +'<div style="padding:0 8px;font-size:12.5px;line-height:1.9;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:65mm;" contenteditable="true" spellcheck="false">'
-        +'<div>('+[...nonS,...sfxP].join(', ')+')</div>'
+        +'<div style="padding:0 8px;font-size:12.5px;line-height:1.9;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:48mm;" contenteditable="true" spellcheck="false">'
+        +ingHtml
         +'<div style="color:#666;margin-top:5px;">'+oriP.join(', ')+'</div>'
         +'</div></td>';
     }
