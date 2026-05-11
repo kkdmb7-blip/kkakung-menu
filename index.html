@@ -203,6 +203,7 @@ html, body { overflow-x: hidden; }
   <div class="bottom-bar-actions">
     <button class="btn btn-ghost" id="downloadBtn" onclick="downloadImages()">🖼️ 이미지 다운로드</button>
     <button class="btn btn-ghost" id="pdfBtn" onclick="downloadPDF()" style="margin-left:6px;">📄 PDF 다운로드</button>
+    <button class="btn btn-ghost" onclick="printMenuTable()" style="margin-left:6px;background:#e8f4e8;color:#2a7a2a;border-color:#8ac08a;">🖨️ 메뉴표 인쇄</button>
     <button class="btn btn-ghost" onclick="resetToSaved()" style="color:var(--primary)">↩️ 원복</button>
     <button class="btn btn-secondary" onclick="saveMenu()">💾 이번 주 저장</button>
   </div>
@@ -2111,6 +2112,133 @@ async function downloadImages() {
     btn.textContent = '🖼️ 이미지 다운로드';
     btn.disabled = false;
   }
+}
+
+// ===== 메뉴표 인쇄 (HWP 포맷 동일 레이아웃) =====
+function printMenuTable() {
+  if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
+
+  const yushikDays = currentMenu.filter(d => d.type === 'yushik' && !d.removed);
+  if (!yushikDays.length) { showToast('⚠️ 이유식 메뉴가 없어요'); return; }
+
+  const SUFFIX = ['죽', '무른밥', '진밥'];
+  const NUMS = [['1.','2.','3.'],['4.','5.','6.'],['7.','8.','9.']];
+  const STAGES = [
+    { label: '오물오물<br>중 &nbsp; 기', sub: '( 7 ~ 9 개월 )' },
+    { label: '잘근잘근<br>후 &nbsp; 기', sub: '( 9 ~ 14 개월 )' },
+    { label: '와구와구<br>완 &nbsp;료 &nbsp;기', sub: '( 14 개월 ~ )' },
+  ];
+
+  function formatIngred(ingStr) {
+    const parts = ingStr.split(',').map(s => s.trim()).filter(Boolean);
+    // 2개씩 묶어서 줄바꿈
+    const lines = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      lines.push(parts.slice(i, i+2).join(', '));
+    }
+    return lines.map(l => `<div>${l}</div>`).join('');
+  }
+
+  const pages = yushikDays.map(day => {
+    const menus = day.menus || [];
+    const origins = day.origins || '';
+    const dateStr = formatKorDate(day.date);
+
+    const rows = STAGES.map((stg, ri) => `
+      <tr>
+        <td class="stage-col">
+          <div class="stage-name">${stg.label}</div>
+          <div class="stage-sub">${stg.sub}</div>
+        </td>
+        ${menus.map((m, mi) => {
+          const menuName = (m.displayName || m.name).replace(' 죽/무른밥/진밥','');
+          const ingStr = m.ingredients || '';
+          return `
+          <td class="menu-col">
+            <div class="menu-name-row" style="background:${mi===0?'#bce1b4':mi===1?'#b4d7eb':'#f0d0b6'}">
+              <b>${NUMS[ri][mi]} ${menuName} ${SUFFIX[ri]}</b>
+            </div>
+            <div class="ingred-cell">${formatIngred(ingStr)}</div>
+          </td>`;
+        }).join('')}
+      </tr>`).join('');
+
+    return `
+      <div class="page">
+        <div class="logo-row">
+          <div class="char-img">🍚</div>
+          <div class="title">까꿍 &nbsp;디미방 &nbsp;${dateStr} &nbsp;이유식 &nbsp;메뉴표</div>
+        </div>
+        <table class="menu-table">
+          <colgroup>
+            <col style="width:13%">
+            <col style="width:29%">
+            <col style="width:29%">
+            <col style="width:29%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="hdr-stage">단 &nbsp; 계</th>
+              <th class="hdr-menu" colspan="3">메 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;뉴</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="origins">${origins}</div>
+        <div class="slogan">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>
+      </div>`;
+  }).join('<div class="page-break"></div>');
+
+  const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>까꿍디미방 이유식 메뉴표</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Nanum Gothic', 'NanumGothic', sans-serif; background: #fff; color: #222; font-size: 13px; }
+  .page { width: 210mm; min-height: 297mm; padding: 18mm 16mm; display: flex; flex-direction: column; align-items: center; }
+  .logo-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+  .char-img { font-size: 42px; }
+  .title { font-size: 22px; font-weight: 800; letter-spacing: 0.05em; }
+  .menu-table { width: 100%; border-collapse: collapse; border: 2px solid #888; margin-bottom: 12px; }
+  .menu-table th, .menu-table td { border: 1px solid #aaa; text-align: center; vertical-align: middle; }
+  .hdr-stage { background: #6aaa60; color: white; font-size: 14px; font-weight: 800; padding: 10px 4px; }
+  .hdr-menu { background: #6aaa60; color: white; font-size: 14px; font-weight: 800; padding: 10px 4px; }
+  .stage-col { background: #f5f4ee; padding: 14px 6px; width: 13%; }
+  .stage-name { font-size: 13px; font-weight: 800; line-height: 1.7; }
+  .stage-sub { font-size: 11px; color: #666; margin-top: 4px; }
+  .menu-col { padding: 0; vertical-align: top; }
+  .menu-name-row { font-size: 13px; font-weight: 800; padding: 8px 4px; border-bottom: 1px solid #ccc; }
+  .ingred-cell { padding: 10px 6px; font-size: 12px; line-height: 1.75; color: #444; text-align: center; }
+  .origins { font-size: 11px; color: #888; margin-bottom: 6px; text-align: left; width: 100%; }
+  .slogan { font-size: 14px; font-weight: 800; color: #3a8a3a; text-align: center; margin-top: 4px; }
+  .page-break { page-break-after: always; }
+  .no-print { display: flex; gap: 10px; justify-content: center; padding: 16px; position: sticky; top: 0; background: #f5f5f5; z-index: 10; border-bottom: 1px solid #ddd; }
+  .no-print button { padding: 10px 24px; font-size: 14px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; }
+  .btn-print { background: #2a7a2a; color: white; }
+  .btn-close { background: #ddd; color: #555; }
+  @media print {
+    .no-print { display: none !important; }
+    .page { padding: 14mm 12mm; }
+    .page-break { page-break-after: always; break-after: page; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="no-print">
+  <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+  <button class="btn-close" onclick="window.close()">닫기</button>
+</div>
+${pages}
+</body>
+</html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
 }
 
 // ===== PDF 다운로드 (이미지 한 장 = PDF 한 페이지) =====
