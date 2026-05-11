@@ -539,7 +539,8 @@ async function recordThisWeek(weekKey, menuData) {
   const schedule = menuData.map(day => ({
     date: (day.date instanceof Date) ? day.date.toISOString().slice(0, 10) : day.date,
     type: day.type,
-    items: day.type === 'yusik' ? (day.items || []).map(it => ({ name: it.name, ingredients: it.ingredients })) : null,
+    items: day.type === 'yusik' ? (day.items || []).map(it => ({ name: it.name, ingredients: it.ingredients, origin: it.origin || '' })) : null,
+    soup: day.type === 'yusik' ? { name: day.soup?.name || '', ingredients: day.soup?.ingredients || '', origin: day.soup?.origin || '' } : null,
     menus: day.type === 'yushik' ? (day.menus || []).map(m => ({
       type: m.type,
       name: m.displayName || m.name,
