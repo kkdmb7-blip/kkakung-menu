@@ -2223,15 +2223,15 @@ function printMenuTable() {
       let ingHtml;
       if (allIng.length >= 5) {
         const mid = Math.ceil(allIng.length/2);
-        ingHtml = '<div>('+allIng.slice(0,mid).join(', ')+')</div><div>('+allIng.slice(mid).join(', ')+')</div>';
+        ingHtml = '<div>('+allIng.slice(0,mid).join(', ')+',</div><div>'+allIng.slice(mid).join(', ')+')</div>';
       } else {
         ingHtml = '<div>('+allIng.join(', ')+')</div>';
       }
       return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
         +'<div style="background:'+HC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false">'+(idx+1)+'. '+(it.name||'')+'</div>'
-        +'<div style="padding:0 8px;font-size:12.5px;line-height:1.9;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:48mm;" contenteditable="true" spellcheck="false">'
+        +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false">'
         +ingHtml
-        +'<div style="color:#666;margin-top:5px;">'+oriP.join(', ')+'</div>'
+        +'<div style="color:#666;margin-top:4px;">'+oriP.join(', ')+'</div>'
         +'</div></td>';
     }
     const sP = (soup.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
@@ -2257,9 +2257,9 @@ function printMenuTable() {
       +'<tr>'+cellHtml(3)+cellHtml(4)
       +'<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
       +'<div style="background:'+SC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false">6. '+(soup.name||'국')+'</div>'
-      +'<div style="padding:12px 6px;font-size:12px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:90px;" contenteditable="true" spellcheck="false">'
-      +'<div>('+[...sNonS,...sSfx].join(', ')+')</div>'
-      +'<div style="color:#666;margin-top:3px;">'+sOri+'</div>'
+      +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false">'
+      +(()=>{const sAll=[...sNonS,...sSfx];if(sAll.length>=5){const m=Math.ceil(sAll.length/2);return'<div>('+sAll.slice(0,m).join(', ')+',</div><div>'+sAll.slice(m).join(', ')+')</div>';}return'<div>('+sAll.join(', ')+')</div>';})()
+      +'<div style="color:#666;margin-top:4px;">'+sOri+'</div>'
       +'</div></td>'
       +'</tr></tbody></table>'
       +'<div style="text-align:center;font-size:14px;line-height:2.1;color:#333;padding:8px 0;border:1px solid #bbb;margin-bottom:5px;">'
