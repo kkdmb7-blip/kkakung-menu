@@ -2133,7 +2133,10 @@ function printMenuTable() {
 
   function sName(name) {
     const n = name.replace(/\s*(죽|무른밥|진밥)(\/무른밥\/진밥)?$/, '').trim();
-    return n.split(/[\s\/]+/).slice(0,2).join(' ');
+    const parts = n.split(/[\s\/]+/).filter(Boolean);
+    const two = parts.slice(0,2).join(' ');
+    // 2단어 합쳐서 8자 초과 시 1단어만 (셀 넘침 방지)
+    return two.length > 8 ? parts[0] : two;
   }
 
   function sortI(ingStr, menuName, mtype) {
@@ -2173,8 +2176,8 @@ function printMenuTable() {
       const cells = menus.map((m,mi) => {
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-          +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:6px 4px;text-align:center;border-bottom:1px solid #bbb;" contenteditable="true" spellcheck="false">'+NUMS[ri][mi]+' '+sName(raw)+' '+SFXARR[ri]+'</div>'
-          +'<div style="padding:6px 4px;font-size:11px;line-height:1.7;color:#333;text-align:center;height:78px;overflow:hidden;" contenteditable="true" spellcheck="false">'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+          +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:6px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false">'+NUMS[ri][mi]+' '+sName(raw)+' '+SFXARR[ri]+'</div>'
+          +'<div style="padding:6px 4px;font-size:11px;line-height:1.75;color:#333;text-align:center;height:82px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false">'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
           +'</td>';
       }).join('');
       return '<tr>'
@@ -2185,19 +2188,19 @@ function printMenuTable() {
     }).join('');
     return '<div style="flex:1;display:flex;flex-direction:column;">'
       +'<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4mm;">'
-      +'<span style="font-size:30px;">🍚</span>'
-      +'<span contenteditable="true" spellcheck="false" style="font-size:16px;font-weight:800;letter-spacing:.04em;">까꿍 디미방 '+dt+' 이유식 메뉴표</span>'
+      +'<span style="display:inline-block;width:38px;height:38px;background:#ffda80;border-radius:50%;border:2px solid #c8a040;font-size:22px;line-height:38px;text-align:center;">🍼</span>'
+      +'<span contenteditable="true" spellcheck="false" style="font-size:17px;font-weight:800;letter-spacing:.04em;">까꿍 디미방 '+dt+' 이유식 메뉴표</span>'
       +'</div>'
       +'<table style="width:100%;border-collapse:collapse;border:2px solid #777;flex:1;table-layout:fixed;">'
       +'<colgroup><col style="width:13%"><col style="width:29%"><col style="width:29%"><col style="width:29%"></colgroup>'
       +'<thead><tr>'
-      +'<th style="background:#5a9a50;color:#fff;font-size:12px;font-weight:800;padding:7px 4px;border:1px solid #bbb;">단 &nbsp; 계</th>'
-      +'<th colspan="3" style="background:#5a9a50;color:#fff;font-size:12px;font-weight:800;padding:7px 4px;border:1px solid #bbb;">메 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;뉴</th>'
+      +'<th style="background:#5a9a50;color:#fff;font-size:15px;font-weight:800;padding:9px 4px;border:1px solid #bbb;">단 &nbsp; 계</th>'
+      +'<th colspan="3" style="background:#5a9a50;color:#fff;font-size:15px;font-weight:800;padding:9px 4px;border:1px solid #bbb;">메 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;뉴</th>'
       +'</tr></thead>'
       +'<tbody>'+rows+'</tbody>'
       +'</table>'
-      +'<div contenteditable="true" spellcheck="false" style="font-size:10.5px;color:#777;margin:3mm 0 1mm;text-align:center;">'+ori+'</div>'
-      +'<div contenteditable="true" spellcheck="false" style="font-size:12px;font-weight:800;color:#2a7a2a;text-align:center;">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>'
+      +'<div contenteditable="true" spellcheck="false" style="font-size:10.5px;color:#777;margin:4mm 0 0;text-align:center;">'+ori+'</div>'
+      +'<div contenteditable="true" spellcheck="false" style="font-size:13px;font-weight:800;color:#2a7a2a;text-align:center;margin-top:3mm;">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>'
       +'</div>';
   }
 
@@ -2212,9 +2215,9 @@ function printMenuTable() {
       const nonS = ingP.filter(s=>!['양파','채소상탕'].includes(s));
       const sfxP = ingP.filter(s=>['양파','채소상탕'].includes(s));
       const oriP = nonS.map(s=>s+(FORG[s]||'국내산'));
-      return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-        +'<div style="background:'+HC+';font-size:11.5px;font-weight:800;padding:6px 4px;text-align:center;border-bottom:1px solid #bbb;" contenteditable="true" spellcheck="false">'+(idx+1)+'. '+(it.name||'')+'</div>'
-        +'<div style="padding:6px 4px;font-size:10.5px;line-height:1.65;color:#333;text-align:center;" contenteditable="true" spellcheck="false">'
+      return '<td style="padding:0;vertical-align:middle;border:1px solid #bbb;">'
+        +'<div style="background:'+HC+';font-size:12.5px;font-weight:800;padding:8px 4px;text-align:center;border-bottom:1px solid #bbb;" contenteditable="true" spellcheck="false">'+(idx+1)+'. '+(it.name||'')+'</div>'
+        +'<div style="padding:10px 4px;font-size:11.5px;line-height:1.8;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70px;" contenteditable="true" spellcheck="false">'
         +'<div>('+[...nonS,...sfxP].join(', ')+')</div>'
         +'<div style="color:#666;">'+oriP.join(', ')+'</div>'
         +'</div></td>';
@@ -2223,10 +2226,17 @@ function printMenuTable() {
     const sNonS = sP.filter(s=>!['양파','채소상탕'].includes(s));
     const sSfx  = sP.filter(s=>['양파','채소상탕'].includes(s));
     const sOri  = sNonS.map(s=>s+(FORG[s]||'국내산')).join(', ');
+    const natBox = '<div style="border:2px solid #bbb;border-radius:4px;padding:8mm 10mm;text-align:center;font-size:14px;font-weight:700;line-height:2.2;color:#222;margin-top:6mm;">'
+      +'간은 최소화하고 재료 본연의 맛으로 만들었습니다.<br>'
+      +'이 반찬은 1통(120g) 기준 나트륨 약 35mg 내외,<br>'
+      +'국 메뉴는 1통(약 450ml) 기준 나트륨 약 120mg 내외로 조리합니다.<br>'
+      +'아이 식사량에 따라 한 통을 여러 번 나누어 드시는 경우가 많아,<br>'
+      +'실제 한 끼에 섭취하는 나트륨 양은 이보다 더 낮아집니다.'
+      +'</div>';
     return '<div style="display:flex;flex-direction:column;">'
       +'<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4mm;">'
-      +'<span style="font-size:30px;">🥘</span>'
-      +'<span contenteditable="true" spellcheck="false" style="font-size:16px;font-weight:800;letter-spacing:.04em;">까꿍 디미방 '+dt+' 유아식 메뉴표</span>'
+      +'<span style="display:inline-block;width:38px;height:38px;background:#ffda80;border-radius:50%;border:2px solid #c8a040;font-size:22px;line-height:38px;text-align:center;">🍼</span>'
+      +'<span contenteditable="true" spellcheck="false" style="font-size:17px;font-weight:800;letter-spacing:.04em;">까꿍 디미방 '+dt+' 유아식 메뉴표</span>'
       +'</div>'
       +'<table style="width:100%;border-collapse:collapse;border:2px solid #777;table-layout:fixed;margin-bottom:3px;">'
       +'<colgroup><col style="width:33.3%"><col style="width:33.3%"><col style="width:33.4%"></colgroup>'
@@ -2248,6 +2258,7 @@ function printMenuTable() {
       +'<div>까꿍디미방은 재료 궁합을 고려해 식단을 구성하고, 친환경 재료를 사용해 건강하고 정성스럽게 조리합니다.</div>'
       +'</div>'
       +'<div style="text-align:center;font-size:12px;font-weight:800;color:#2a7a2a;margin-top:5px;">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>'
+      +natBox
       +'</div>';
   }
 
@@ -2268,7 +2279,7 @@ function printMenuTable() {
     pages += '<div class="a4p" style="display:flex;flex-direction:column;gap:5mm;">'+a+b+'</div>';
   }
   yusikDays.forEach(d => {
-    pages += '<div class="a4p">'+yusikCard(d)+'</div>'+natPage;
+    pages += '<div class="a4p">'+yusikCard(d)+'</div>';
   });
 
   const html = '<!DOCTYPE html><html lang="ko"><head>'
