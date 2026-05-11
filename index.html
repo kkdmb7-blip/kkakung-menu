@@ -1083,6 +1083,17 @@ function renderDay(day, di) {
         </div>
       </div>
       ${menusHtml}
+      <div style="padding:10px 14px 12px;background:#fdf8f5;border-top:1px solid #f5e0d0;">
+        <label style="font-size:11px;font-weight:700;color:#a05030;display:block;margin-bottom:4px">📋 원산지 표기</label>
+        <input
+          type="text"
+          value="${(day.origins||'').replace(/"/g,'&quot;')}"
+          onchange="currentMenu[${di}].origins=this.value"
+          oninput="currentMenu[${di}].origins=this.value"
+          placeholder="예: 한우국내산, 알배추국내산, 파로이탈리아, 새송이국내산"
+          style="width:100%;box-sizing:border-box;padding:7px 10px;font-size:12px;border:1px solid #f0d0b8;border-radius:8px;outline:none;font-family:inherit;color:#333;background:white;"
+        />
+      </div>
     </div>`;
 }
 
@@ -2020,7 +2031,8 @@ async function downloadImages() {
         const allIngred = day.menus.flatMap(m =>
           m.ingredients.split(',').map(s => s.trim()).filter(s => s && !['양파','채소상탕','한우육수','닭육수'].includes(s))
         );
-        const origins = [...new Set(allIngred)].map(i => i + '국내산').join(', ');
+        // 직접 입력한 원산지 사용 (없으면 자동생성)
+        const origins = day.origins || [...new Set(allIngred)].map(i => i + '국내산').join(', ');
 
         payload = {
           type: 'yushik',
@@ -2127,7 +2139,8 @@ async function downloadPDF() {
         const allIngred = day.menus.flatMap(m =>
           m.ingredients.split(',').map(s => s.trim()).filter(s => s && !['양파','채소상탕','한우육수','닭육수'].includes(s))
         );
-        payload = { type: 'yushik', date_str: formatKorDate(day.date), menus, origins: [...new Set(allIngred)].map(i => i+'국내산').join(', ') };
+        const pdfOrigins = day.origins || [...new Set(allIngred)].map(i => i+'국내산').join(', ');
+        payload = { type: 'yushik', date_str: formatKorDate(day.date), menus, origins: pdfOrigins };
       } else {
         const items = day.items.map(item => ({
           name: item.name,
