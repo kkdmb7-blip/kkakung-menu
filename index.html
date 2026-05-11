@@ -2156,9 +2156,9 @@ function printMenuTable() {
           return `
           <td class="menu-col">
             <div class="menu-name-row" style="background:${mi===0?'#bce1b4':mi===1?'#b4d7eb':'#f0d0b6'}">
-              <b>${NUMS[ri][mi]} ${menuName} ${SUFFIX[ri]}</b>
+              <b contenteditable="true">${NUMS[ri][mi]} ${menuName} ${SUFFIX[ri]}</b>
             </div>
-            <div class="ingred-cell">${formatIngred(ingStr)}</div>
+            <div class="ingred-cell" contenteditable="true">${formatIngred(ingStr)}</div>
           </td>`;
         }).join('')}
       </tr>`).join('');
@@ -2167,7 +2167,7 @@ function printMenuTable() {
       <div class="page">
         <div class="logo-row">
           <div class="char-img">🍚</div>
-          <div class="title">까꿍 &nbsp;디미방 &nbsp;${dateStr} &nbsp;이유식 &nbsp;메뉴표</div>
+          <div class="title" contenteditable="true">까꿍 &nbsp;디미방 &nbsp;${dateStr} &nbsp;이유식 &nbsp;메뉴표</div>
         </div>
         <table class="menu-table">
           <colgroup>
@@ -2184,8 +2184,8 @@ function printMenuTable() {
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <div class="origins">${origins}</div>
-        <div class="slogan">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>
+        <div class="origins" contenteditable="true">${origins || '원산지를 여기에 입력하세요'}</div>
+        <div class="slogan" contenteditable="true">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>
       </div>`;
   }).join('<div class="page-break"></div>');
 
@@ -2219,11 +2219,17 @@ function printMenuTable() {
   .no-print button { padding: 10px 24px; font-size: 14px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; }
   .btn-print { background: #2a7a2a; color: white; }
   .btn-close { background: #ddd; color: #555; }
+  /* 편집 가능 셀 표시 */
+  [contenteditable]:hover { outline: 2px dashed #6aaa60; outline-offset: 2px; cursor: text; }
+  [contenteditable]:focus { outline: 2px solid #2a7a2a; outline-offset: 2px; background: #fffde8; }
+  .edit-hint { font-size: 11px; color: #999; text-align: center; padding: 4px; }
   @media print {
     .no-print { display: none !important; }
+    .edit-hint { display: none !important; }
     .page { padding: 14mm 12mm; }
     .page-break { page-break-after: always; break-after: page; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    [contenteditable] { outline: none !important; background: transparent !important; }
   }
 </style>
 </head>
@@ -2232,6 +2238,7 @@ function printMenuTable() {
   <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
   <button class="btn-close" onclick="window.close()">닫기</button>
 </div>
+<div class="edit-hint">✏️ 내용을 직접 클릭하면 수정할 수 있어요 — 수정 후 인쇄하세요</div>
 ${pages}
 </body>
 </html>`;
