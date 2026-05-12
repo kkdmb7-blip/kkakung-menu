@@ -2222,7 +2222,7 @@ function printMenuTable() {
     const items = day.items||[];
     const soup  = day.soup||{};
     const dt = formatKorDate(day.date);
-    const HC = '#c0e8a8'; const SC = '#9ecce8';
+    const HC = '#c0e8a8'; const SC = '#c0e8a8';
     function cellHtml(idx) {
       const it = items[idx]||{};
       const ingP = (it.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
