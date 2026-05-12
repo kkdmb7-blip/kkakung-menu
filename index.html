@@ -2252,7 +2252,8 @@ function printMenuTable() {
     const sNonS = sP.filter(s=>!['양파','채소상탕'].includes(s));
     const sSfx  = sP.filter(s=>['양파','채소상탕'].includes(s));
     const sOri  = sNonS.slice(0,3).map(s=>s+(FORG[s]||'국내산')).join(', ');
-    const natBox = '<div style="border:2px solid #bbb;border-radius:4px;padding:11mm 10mm;text-align:center;font-size:16px;font-weight:700;line-height:2.5;color:#222;">'
+    const natBox = '<div style="border:1px solid #c8d8c0;border-radius:8px;background:#f7fcf5;padding:9mm 10mm;text-align:center;font-size:15px;font-weight:600;line-height:2.5;color:#444;">'
+      +'<div style="font-size:12px;font-weight:700;color:#7aaa68;letter-spacing:.12em;margin-bottom:3mm;">— 나트륨 안내 —</div>'
       +'간은 최소화하고 재료 본연의 맛으로 만들었습니다.<br>'
       +'이 반찬은 1통(120g) 기준 나트륨 약 35mg 내외,<br>'
       +'국 메뉴는 1통(약 450ml) 기준 나트륨 약 120mg 내외로 조리합니다.<br>'
@@ -2260,11 +2261,11 @@ function printMenuTable() {
       +'실제 한 끼에 섭취하는 나트륨 양은 이보다 더 낮아집니다.'
       +'</div>';
     return '<div style="display:flex;flex-direction:column;height:281mm;">'
-      +'<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4mm;">'
-      +'<span style="display:inline-block;width:38px;height:38px;background:#ffda80;border-radius:50%;border:2px solid #c8a040;font-size:22px;line-height:38px;text-align:center;">🍼</span>'
-      +'<span contenteditable="true" spellcheck="false" style="font-size:17px;font-weight:800;letter-spacing:.04em;">까꿍 디미방 '+dt+' 유아식 메뉴표</span>'
+      +'<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4mm;padding-bottom:3mm;border-bottom:2px solid #90c87a;">'
+      +'<span style="display:inline-block;width:36px;height:36px;background:#ffda80;border-radius:50%;border:2px solid #c8a040;font-size:20px;line-height:36px;text-align:center;">🍼</span>'
+      +'<span contenteditable="true" spellcheck="false" style="font-size:18px;font-weight:800;letter-spacing:.04em;color:#1a4a1a;">까꿍 디미방 '+dt+' 유아식 메뉴표</span>'
       +'</div>'
-      +'<table style="width:100%;border-collapse:collapse;border:2px solid #777;table-layout:fixed;margin-bottom:3px;">'
+      +'<table style="width:100%;border-collapse:collapse;border:2px solid #90c87a;table-layout:fixed;margin-bottom:3px;">'
       +'<colgroup><col style="width:33.3%"><col style="width:33.3%"><col style="width:33.4%"></colgroup>'
       +'<tbody>'
       +'<tr>'+cellHtml(0)+cellHtml(1)+cellHtml(2)+'</tr>'
@@ -2276,18 +2277,16 @@ function printMenuTable() {
       +'<div style="color:#666;margin-top:4px;word-break:keep-all;">'+sOri+'</div>'
       +'</div></td>'
       +'</tr></tbody></table>'
-      +'<div style="flex:1;display:flex;flex-direction:column;margin-top:5mm;">'
-      +'<div style="text-align:center;font-size:15px;line-height:2.5;color:#333;padding:20px 0;border:1px solid #bbb;">'
-      +'<div style="font-weight:800;font-size:16px;">반찬5개 + 국1개 &nbsp;= &nbsp;35,000원 세트판매</div>'
+      +'<div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;margin-top:5mm;">'
+      +'<div style="background:#f6fff4;border:1.5px solid #b8d8a8;border-radius:8px;padding:18px 0;text-align:center;font-size:14.5px;line-height:2.4;color:#333;">'
+      +'<div style="font-weight:800;font-size:16px;color:#2a6a2a;">반찬5개 + 국1개 &nbsp;= &nbsp;35,000원 세트판매</div>'
       +'<div>아이마다 좋아하는 맛과 속도가 달라 모든 메뉴가 항상 잘 맞지 않을 수 있습니다.</div>'
       +'<div>알레르기나 조정이 필요한 재료는 주문 시 편하게 말씀 주세요.</div>'
       +'<div>주문은 <b style="color:#c00;">일요일 저녁 10시</b>까지 부탁드립니다.</div>'
       +'<div>까꿍디미방은 재료 궁합을 고려해 식단을 구성하고, 친환경 재료를 사용해 건강하고 정성스럽게 조리합니다.</div>'
+      +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid #c8e0b8;font-size:13px;font-weight:700;color:#3a8a3a;">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>'
       +'</div>'
-      +'<div style="margin-top:7mm;">'
-      +'<div style="text-align:center;font-size:15px;font-weight:800;color:#2a7a2a;margin-bottom:5mm;">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>'
       +natBox
-      +'</div>'
       +'</div>'
       +'</div>';
   }
