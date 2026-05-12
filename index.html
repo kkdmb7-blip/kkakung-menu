@@ -2245,7 +2245,7 @@ function printMenuTable() {
         +'<div style="background:'+HC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false">'+(idx+1)+'. '+(it.name||'')+'</div>'
         +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false">'
         +ingHtml
-        +'<div style="color:#666;margin-top:4px;">'+oriP.join(', ')+'</div>'
+        +'<div style="color:#666;margin-top:4px;word-break:keep-all;">'+oriP.join(', ')+'</div>'
         +'</div></td>';
     }
     const sP = (soup.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
@@ -2273,7 +2273,7 @@ function printMenuTable() {
       +'<div style="background:'+SC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false">6. '+(soup.name||'국')+'</div>'
       +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false">'
       +(()=>{const sAll=[...sNonS,...sSfx];if(sAll.length>=5){const m=Math.ceil(sAll.length/2);return'<div>('+sAll.slice(0,m).join(', ')+',</div><div>'+sAll.slice(m).join(', ')+')</div>';}return'<div>('+sAll.join(', ')+')</div>';})()
-      +'<div style="color:#666;margin-top:4px;">'+sOri+'</div>'
+      +'<div style="color:#666;margin-top:4px;word-break:keep-all;">'+sOri+'</div>'
       +'</div></td>'
       +'</tr></tbody></table>'
       +'<div style="flex:1;display:flex;flex-direction:column;margin-top:5mm;">'
