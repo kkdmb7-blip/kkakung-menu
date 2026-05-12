@@ -2191,7 +2191,7 @@ function printMenuTable() {
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
           +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false">'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
-          +'<div style="padding:4px;font-size:11px;line-height:1.65;color:#333;text-align:center;height:74px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false">'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+          +'<div style="padding:4px;font-size:11px;line-height:1.65;color:#333;text-align:center;height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false">'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
           +'</td>';
       }).join('');
       return '<tr>'
