@@ -2136,9 +2136,7 @@ function printMenuTable() {
   function sName(name) {
     const n = name.replace(/\s*(죽|무른밥|진밥)(\/무른밥\/진밥)?$/, '').trim();
     const parts = n.split(/[\s\/]+/).filter(Boolean);
-    const two = parts.slice(0,2).join(' ');
-    // 2단어 합쳐서 8자 초과 시 1단어만 (셀 넘침 방지)
-    return two.length > 8 ? parts[0] : two;
+    return parts.slice(0, 2).join(' ');
   }
 
   function sortI(ingStr, menuName, mtype) {
