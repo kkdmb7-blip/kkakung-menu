@@ -2178,7 +2178,8 @@ function printMenuTable() {
   }
 
   function yushikCard(day) {
-    const menus = day.menus||[];
+    const typeOrd = {hanwoo:0, chicken:1};
+    const menus = (day.menus||[]).slice().sort((a,b)=>(typeOrd[a.type]??2)-(typeOrd[b.type]??2));
     const ori = day.origins || buildOri(menus);
     const dt = formatKorDate(day.date);
     const rows = STAGES.map((st,ri) => {
