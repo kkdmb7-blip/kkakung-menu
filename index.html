@@ -2145,7 +2145,11 @@ function printMenuTable() {
       const v = main.find(s=>s!=='닭가슴살')||'';
       return v ? '닭가슴살 '+v : '닭가슴살';
     }
-    return main.slice(0,2).join(' ');
+    // 기타단백질: P3_POOL 기준으로 주재료를 먼저 찾고 + 야채 1개
+    const p3Set = new Set(P3_POOL);
+    const mainProt = main.find(s=>p3Set.has(s)) || main[0] || '';
+    const veggie = main.find(s=>s!==mainProt) || '';
+    return mainProt + (veggie ? ' '+veggie : '');
   }
 
   function sortI(ingStr, menuName, mtype) {
