@@ -2190,8 +2190,8 @@ function printMenuTable() {
       const cells = menus.map((m,mi) => {
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-          +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:6px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false">'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
-          +'<div style="padding:6px 4px;font-size:11px;line-height:1.75;color:#333;text-align:center;height:82px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false">'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+          +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:8px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:34px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false">'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
+          +'<div style="padding:4px;font-size:11px;line-height:1.75;color:#333;text-align:center;height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false">'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
           +'</td>';
       }).join('');
       return '<tr>'
@@ -2205,7 +2205,7 @@ function printMenuTable() {
       +'<span style="display:inline-block;width:36px;height:36px;background:#ffda80;border-radius:50%;border:2px solid #c8a040;font-size:20px;line-height:36px;text-align:center;">🍼</span>'
       +'<span contenteditable="true" spellcheck="false" class="gm" style="font-size:18px;font-weight:700;letter-spacing:.04em;color:#1a4a1a;">까꿍 디미방 '+dt+' 이유식 메뉴표</span>'
       +'</div>'
-      +'<table style="width:100%;border-collapse:collapse;border:2px solid #90c87a;flex:1;table-layout:fixed;">'
+      +'<table style="width:100%;border-collapse:collapse;border:2px solid #90c87a;table-layout:fixed;">'
       +'<colgroup><col style="width:13%"><col style="width:29%"><col style="width:29%"><col style="width:29%"></colgroup>'
       +'<thead><tr>'
       +'<th class="gm" style="background:#5a9a50;color:#fff;font-size:15px;font-weight:700;padding:9px 4px;border:1px solid #90c87a;">단 &nbsp; 계</th>'
@@ -2331,7 +2331,7 @@ function printMenuTable() {
     +'@media print{'
     +'.np,.ht{display:none!important;}'
     +'.a4p{padding:8mm 10mm;height:297mm;box-sizing:border-box;}'
-    +'body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+    +'*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}'
     +'[contenteditable]{outline:none!important;background:transparent!important;}'
     +'}'
     +'</style>'
