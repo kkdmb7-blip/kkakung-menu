@@ -2252,7 +2252,7 @@ function printMenuTable() {
     const sNonS = sP.filter(s=>!['양파','채소상탕'].includes(s));
     const sSfx  = sP.filter(s=>['양파','채소상탕'].includes(s));
     const sOri  = sNonS.slice(0,3).map(s=>s+(FORG[s]||'국내산')).join(', ');
-    const natBox = '<div style="border:1px solid #c8d8c0;border-radius:8px;background:#f7fcf5;padding:9mm 10mm;text-align:center;font-size:15px;font-weight:600;line-height:2.5;color:#444;">'
+    const natBox = '<div style="border:1px solid #c8d8c0;border-radius:8px;background:#f7fcf5;padding:9mm 10mm;text-align:center;font-size:15px;font-weight:600;line-height:2.5;color:#444;margin-top:auto;">'
       +'<div style="font-size:12px;font-weight:700;color:#7aaa68;letter-spacing:.12em;margin-bottom:3mm;">— 나트륨 안내 —</div>'
       +'간은 최소화하고 재료 본연의 맛으로 만들었습니다.<br>'
       +'이 반찬은 1통(120g) 기준 나트륨 약 35mg 내외,<br>'
@@ -2277,7 +2277,7 @@ function printMenuTable() {
       +'<div style="color:#666;margin-top:4px;word-break:keep-all;">'+sOri+'</div>'
       +'</div></td>'
       +'</tr></tbody></table>'
-      +'<div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;margin-top:5mm;">'
+      +'<div style="flex:1;display:flex;flex-direction:column;margin-top:5mm;">'
       +'<div style="background:#f6fff4;border:1.5px solid #b8d8a8;border-radius:8px;padding:18px 0;text-align:center;font-size:14.5px;line-height:2.4;color:#333;">'
       +'<div class="gm" style="font-weight:700;font-size:16px;color:#2a6a2a;">반찬5개 + 국1개 &nbsp;= &nbsp;35,000원 세트판매</div>'
       +'<div>아이마다 좋아하는 맛과 속도가 달라 모든 메뉴가 항상 잘 맞지 않을 수 있습니다.</div>'
