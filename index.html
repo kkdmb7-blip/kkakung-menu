@@ -923,9 +923,11 @@ function restoreCurrent() {
   try {
     const saved = JSON.parse(localStorage.getItem(CUR_KEY));
     if (!saved || !saved.menu) return;
+    // 저장된 주차가 현재 주차와 다르면 무시 (다른 컴퓨터에서 이전 주차 복원 방지)
+    const curWeek = document.getElementById('weekStart').value;
+    if (saved.weekStart !== curWeek) return;
     saved.menu.forEach(day => { day.date = new Date(day.date); });
     currentMenu = saved.menu;
-    document.getElementById('weekStart').value = saved.weekStart;
     updateWeekDates();
     buildWeekButtons();
     renderMenu();
