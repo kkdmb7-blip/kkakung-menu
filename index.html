@@ -1149,6 +1149,8 @@ function openEditSoup(di) {
 let editChips = [];
 let selectedChipIdx = -1;
 let chipTypingIdx = -1;
+let _dragIdx = -1;
+let _touchDragIdx = -1;
 
 function initChipEditor(ingredStr) {
   editChips = (ingredStr || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -1173,7 +1175,15 @@ function renderChipEditor() {
         `style="width:${w}px"></span>`;
     }
     const sel = i === selectedChipIdx ? ' selected' : '';
-    return `<span class="ingred-chip${sel}" style="display:inline-flex;align-items:center;gap:4px">` +
+    return `<span class="ingred-chip${sel}" data-chipidx="${i}" draggable="true"
+      ondragstart="chipDragStart(${i})"
+      ondragover="chipDragOver(event,${i})"
+      ondragleave="chipDragLeave(event)"
+      ondrop="chipDrop(event,${i})"
+      ontouchstart="chipTouchStart(event,${i})"
+      ontouchmove="chipTouchMove(event)"
+      ontouchend="chipTouchEnd(event)"
+      style="display:inline-flex;align-items:center;gap:4px;cursor:grab;touch-action:none">` +
       `<span onclick="onChipClick(${i})">${chip}</span>` +
       `<span onclick="removeChip(${i})" style="opacity:0.5;font-size:10px;cursor:pointer;line-height:1" title="삭제">✕</span>` +
       `</span>`;
@@ -1315,6 +1325,41 @@ function addFromPicker(val) {
   selectedChipIdx = -1;
   renderChipEditor();
   document.getElementById('chipPicker').className = 'chip-picker';
+}
+
+function chipDragStart(idx) { _dragIdx = idx; }
+function chipDragOver(e, idx) {
+  e.preventDefault();
+  if (_dragIdx !== -1 && _dragIdx !== idx) e.currentTarget.style.outline = '2px dashed var(--primary)';
+}
+function chipDragLeave(e) { e.currentTarget.style.outline = ''; }
+function chipDrop(e, idx) {
+  e.preventDefault();
+  e.currentTarget.style.outline = '';
+  if (_dragIdx === -1 || _dragIdx === idx) return;
+  const c = editChips.splice(_dragIdx, 1)[0];
+  editChips.splice(idx, 0, c);
+  _dragIdx = -1; selectedChipIdx = -1;
+  renderChipEditor();
+}
+function chipTouchStart(e, idx) {
+  _touchDragIdx = idx;
+  e.currentTarget.style.opacity = '0.6';
+}
+function chipTouchMove(e) { e.preventDefault(); }
+function chipTouchEnd(e) {
+  if (_touchDragIdx === -1) return;
+  const t = e.changedTouches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY)?.closest('[data-chipidx]');
+  const toIdx = el ? parseInt(el.dataset.chipidx) : -1;
+  document.querySelectorAll('[data-chipidx]').forEach(c => c.style.opacity = '');
+  if (toIdx !== -1 && toIdx !== _touchDragIdx) {
+    const c = editChips.splice(_touchDragIdx, 1)[0];
+    editChips.splice(toIdx, 0, c);
+    selectedChipIdx = -1;
+    renderChipEditor();
+  }
+  _touchDragIdx = -1;
 }
 
 function addCustomIngred() {
