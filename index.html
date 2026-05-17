@@ -1312,15 +1312,19 @@ function showAddPicker() {
     options = [...all].filter(o => !used.has(o));
   }
 
-  const customIngreds = getCustomIngreds().filter(o => o && !used.has(o));
-  if (customIngreds.length) options = [...new Set([...customIngreds, ...options])];
+  const customIngreds = getCustomIngreds().filter(o => o);
   const cc = mtype === 'hanwoo' ? 'hanwoo-chip' : mtype === 'chicken' ? 'chicken-chip' : 'other-chip';
+  const customHtml = customIngreds.length
+    ? `<div style="margin-bottom:6px;"><span style="font-size:11px;color:#888;font-weight:700;">자주 쓰는 재료</span> `
+      + customIngreds.map(o => `<span class="suggestion-chip" style="background:#fff3e0;color:#b06000;border-color:#f0b060;" onclick="addFromPicker('${o.replace(/'/g,"\\'")}')">${o}</span>`).join('')
+      + `</div>` : '';
   picker.innerHTML = `<span class="chip-picker-label">추가할 재료 선택:</span>`
     + `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">`
     + `<input id="customIngredInput" type="text" placeholder="직접 입력 (예: 원당)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;" onkeydown="if(event.key==='Enter'){addCustomIngred();event.preventDefault();}">`
     + `<button onclick="addCustomIngred()" style="padding:5px 12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>`
     + `</div>`
-    + options.map(o => `<span class="suggestion-chip ${cc}" onclick="addFromPicker('${o.replace(/'/g,"\\'")}')">${o}</span>`).join('');
+    + customHtml
+    + options.filter(o => !used.has(o)).map(o => `<span class="suggestion-chip ${cc}" onclick="addFromPicker('${o.replace(/'/g,"\\'")}')">${o}</span>`).join('');
   picker.className = 'chip-picker active';
   setTimeout(() => document.getElementById('customIngredInput')?.focus(), 50);
 }
