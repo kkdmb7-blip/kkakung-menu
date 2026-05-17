@@ -801,19 +801,7 @@ async function selectWeekBtn(weekKey) {
   updateWeekDates();
   buildWeekButtons(); // active 갱신
 
-  // CUR_KEY에 이 주차 데이터 있으면 로드
-  try {
-    const saved = JSON.parse(localStorage.getItem(CUR_KEY) || '{}');
-    if (saved.weekStart === weekKey && saved.menu && saved.menu.length) {
-      saved.menu.forEach(d => { d.date = new Date(d.date); });
-      currentMenu = saved.menu;
-      window._histCompareActive = false;
-      renderCurrentInHistory();
-      return;
-    }
-  } catch(e) {}
-
-  // DB에서 schedule 조회
+  // DB 우선 조회 → 실패 시 localStorage 폴백
   try {
     const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=eq.${weekKey}&select=yusik`, { headers: SB_HEADERS });
     const rows = await res.json();
@@ -828,9 +816,25 @@ async function selectWeekBtn(weekKey) {
       });
       persistCurrent();
     } else {
-      currentMenu = null;
+      // DB에 없으면 localStorage 폴백
+      const saved = JSON.parse(localStorage.getItem(CUR_KEY) || '{}');
+      if (saved.weekStart === weekKey && saved.menu?.length) {
+        saved.menu.forEach(d => { d.date = new Date(d.date); });
+        currentMenu = saved.menu;
+      } else {
+        currentMenu = null;
+      }
     }
-  } catch(e) { currentMenu = null; }
+  } catch(e) {
+    // 네트워크 오류 시 localStorage 폴백
+    try {
+      const saved = JSON.parse(localStorage.getItem(CUR_KEY) || '{}');
+      if (saved.weekStart === weekKey && saved.menu?.length) {
+        saved.menu.forEach(d => { d.date = new Date(d.date); });
+        currentMenu = saved.menu;
+      } else { currentMenu = null; }
+    } catch { currentMenu = null; }
+  }
   window._histCompareActive = false;
   renderCurrentInHistory();
 }
