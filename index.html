@@ -1503,6 +1503,11 @@ async function saveMenu() {
   const weekKey = document.getElementById('weekStart').value;
 
 
+  const alreadySaved = await isWeekSaved(weekKey);
+  if (alreadySaved) {
+    if (!confirm(`이미 저장된 주차예요.\n다시 저장하면 기존 기록이 바뀝니다.\n\n저장할까요?`)) return;
+  }
+
   showToast('⏳ 저장 중...');
   await recordThisWeek(weekKey, currentMenu);
   persistCurrent();
