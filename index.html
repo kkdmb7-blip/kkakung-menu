@@ -326,6 +326,9 @@ const PAIRINGS = {
     '찰기장':      ['당근','감자','쥬키니호박','브로콜리'],
     '햄프시드':    ['당근','쥬키니호박','감자','양파'],
     '흑임자':      ['당근','감자','쥬키니호박','브로콜리'],
+    '흰강낭콩':    ['단호박','당근','쥬키니호박','브로콜리'],
+    '두부':        ['당근','쥬키니호박','감자','브로콜리'],
+    '연두부':      ['당근','쥬키니호박','감자','브로콜리'],
     '강황쌀':      ['당근','쥬키니호박','감자','양파'],
     '매생이':      ['두부','당근','쥬키니호박','감자'],
     '톳':          ['두부','당근','쥬키니호박','감자'],
@@ -2145,9 +2148,11 @@ function printMenuTable() {
       const v = main.find(s=>s!=='닭가슴살')||'';
       return v ? '닭가슴살 '+v : '닭가슴살';
     }
-    // 기타단백질: P3_POOL 기준으로 주재료를 먼저 찾고 + 야채 1개
+    // 기타단백질: P3_POOL → displayName 첫 단어 → main[0] 순으로 주재료 파악
     const p3Set = new Set(P3_POOL);
-    const mainProt = main.find(s=>p3Set.has(s)) || main[0] || '';
+    const fromPool = main.find(s=>p3Set.has(s));
+    const fromName = (m.displayName||m.name||'').replace(/\s*(죽|무른밥|진밥)(\/무른밥\/진밥)?$/,'').trim().split(/\s+/)[0];
+    const mainProt = fromPool || (fromName && main.includes(fromName) ? fromName : '') || main[0] || '';
     const veggie = main.find(s=>s!==mainProt) || '';
     return mainProt + (veggie ? ' '+veggie : '');
   }
