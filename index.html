@@ -1299,13 +1299,29 @@ function showAddPicker() {
   }
 
   const cc = mtype === 'hanwoo' ? 'hanwoo-chip' : mtype === 'chicken' ? 'chicken-chip' : 'other-chip';
-  picker.innerHTML = `<span class="chip-picker-label">추가할 재료 선택:</span>` +
-    options.map(o => `<span class="suggestion-chip ${cc}" onclick="addFromPicker('${o.replace(/'/g,"\\'")}')">${o}</span>`).join('');
+  picker.innerHTML = `<span class="chip-picker-label">추가할 재료 선택:</span>`
+    + `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">`
+    + `<input id="customIngredInput" type="text" placeholder="직접 입력 (예: 원당)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;" onkeydown="if(event.key==='Enter'){addCustomIngred();event.preventDefault();}">`
+    + `<button onclick="addCustomIngred()" style="padding:5px 12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>`
+    + `</div>`
+    + options.map(o => `<span class="suggestion-chip ${cc}" onclick="addFromPicker('${o.replace(/'/g,"\\'")}')">${o}</span>`).join('');
   picker.className = 'chip-picker active';
+  setTimeout(() => document.getElementById('customIngredInput')?.focus(), 50);
 }
 
 function addFromPicker(val) {
   editChips.push(val);
+  addingMode = false;
+  selectedChipIdx = -1;
+  renderChipEditor();
+  document.getElementById('chipPicker').className = 'chip-picker';
+}
+
+function addCustomIngred() {
+  const input = document.getElementById('customIngredInput');
+  const val = (input?.value || '').trim();
+  if (!val) return;
+  if (!editChips.includes(val)) editChips.push(val);
   addingMode = false;
   selectedChipIdx = -1;
   renderChipEditor();
