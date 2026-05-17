@@ -1439,6 +1439,7 @@ function saveEdit() {
   } else {
     renderMenu();
   }
+  persistCurrent();
   closeModal('editModal');
   showToast('✅ 메뉴가 수정됐어요');
 }
@@ -1504,6 +1505,7 @@ async function saveMenu() {
 
   showToast('⏳ 저장 중...');
   await recordThisWeek(weekKey, currentMenu);
+  persistCurrent();
   document.getElementById('bottomInfo').textContent =
     `✅ ${weekKey} 저장 완료`;
   showToast('💾 저장됐어요!');
