@@ -1501,11 +1501,6 @@ async function saveMenu() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
   const weekKey = document.getElementById('weekStart').value;
 
-  // 이미 저장된 주차 재저장 시 경고
-  const alreadySaved = await isWeekSaved(weekKey);
-  if (alreadySaved) {
-    if (!confirm(`⚠️ 이미 저장된 주차예요!\n\n다시 저장하면 기존 기록이\n바뀝니다.\n\n정말 다시 저장할까요?`)) return;
-  }
 
   showToast('⏳ 저장 중...');
   await recordThisWeek(weekKey, currentMenu);
