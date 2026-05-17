@@ -2224,7 +2224,18 @@ function printMenuTable() {
   }
 
   function yusikCard(day) {
-    const items = day.items||[];
+    const rawItems = day.items||[];
+    const items = [...rawItems].sort((a,b) => {
+      const pri = it => {
+        const n = (it.name||'');
+        if (n.includes('소고기')||n.includes('한우')) return 0;
+        if (n.includes('한돈')||n.includes('돼지')) return 1;
+        if (n.includes('닭')) return 2;
+        if (n.includes('잔멸치')) return 4;
+        return 3;
+      };
+      return pri(a) - pri(b);
+    });
     const soup  = day.soup||{};
     const dt = formatKorDate(day.date);
     const HC = '#c0e8a8'; const SC = '#c0e8a8';
