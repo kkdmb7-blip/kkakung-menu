@@ -1308,6 +1308,8 @@ function showAddPicker() {
     options = [...all].filter(o => !used.has(o));
   }
 
+  const customIngreds = getCustomIngreds().filter(o => o && !used.has(o));
+  if (customIngreds.length) options = [...new Set([...customIngreds, ...options])];
   const cc = mtype === 'hanwoo' ? 'hanwoo-chip' : mtype === 'chicken' ? 'chicken-chip' : 'other-chip';
   picker.innerHTML = `<span class="chip-picker-label">추가할 재료 선택:</span>`
     + `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">`
@@ -1362,11 +1364,21 @@ function chipTouchEnd(e) {
   _touchDragIdx = -1;
 }
 
+const CUSTOM_INGRED_KEY = 'kkakung_custom_ingreds';
+function getCustomIngreds() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_INGRED_KEY) || '[]'); } catch { return []; }
+}
+function saveCustomIngred(val) {
+  const list = getCustomIngreds();
+  if (!list.includes(val)) { list.push(val); localStorage.setItem(CUSTOM_INGRED_KEY, JSON.stringify(list)); }
+}
+
 function addCustomIngred() {
   const input = document.getElementById('customIngredInput');
   const val = (input?.value || '').trim();
   if (!val) return;
   if (!editChips.includes(val)) editChips.push(val);
+  saveCustomIngred(val);
   addingMode = false;
   selectedChipIdx = -1;
   renderChipEditor();
