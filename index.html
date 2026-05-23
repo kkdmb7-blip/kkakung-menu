@@ -213,7 +213,7 @@ html, body { overflow-x: hidden; }
     <h3>✏️ 메뉴 편집</h3>
     <div class="modal-section">
       <label>메뉴 이름</label>
-      <input type="text" id="editName" placeholder="예: 한우 브로콜리 죽">
+      <input type="text" id="editName" placeholder="예: 한우 브로콜리 죽" oninput="saveModalDraft()">
     </div>
     <div class="modal-section">
       <label>재료 <span style="font-size:11px;color:var(--text-light);font-weight:400;text-transform:none;letter-spacing:0">누르면 선택 · 다시 누르면 직접입력</span></label>
@@ -223,7 +223,7 @@ html, body { overflow-x: hidden; }
     </div>
     <div class="modal-section">
       <label>원산지</label>
-      <input type="text" id="editOrigin" placeholder="예: 소고기호주산, 단호박뉴질랜드, 당근국내산">
+      <input type="text" id="editOrigin" placeholder="예: 소고기호주산, 단호박뉴질랜드, 당근국내산" oninput="saveModalDraft()">
     </div>
     <div class="modal-section" id="suggestionsSection">
       <label>추천 선택</label>
@@ -231,7 +231,7 @@ html, body { overflow-x: hidden; }
     </div>
     <div class="modal-section" id="midNoteSection" style="display:none">
       <label>중기 주의 <span style="font-size:11px;color:var(--text-light);font-weight:400;text-transform:none;letter-spacing:0">알러지·단계 차이 있으면 입력</span></label>
-      <input type="text" id="editMidNote" placeholder="예: 새우 제외" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none">
+      <input type="text" id="editMidNote" placeholder="예: 새우 제외" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none" oninput="saveModalDraft()">
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('editModal')">취소</button>
@@ -919,26 +919,91 @@ async function generateMenu() {
 }
 
 const CUR_KEY = 'kkakung_current_menu';
+const DRAFT_KEY = 'kkakung_modal_draft';
 
 function persistCurrent() {
   if (!currentMenu) return;
   const weekStart = document.getElementById('weekStart').value;
-  localStorage.setItem(CUR_KEY, JSON.stringify({ weekStart, menu: currentMenu }));
+  localStorage.setItem(CUR_KEY, JSON.stringify({ weekStart, menu: currentMenu, ts: Date.now() }));
+}
+
+// 원산지 입력 등 잦은 oninput 이벤트용 디바운스 저장
+let _autoPersistTimer = null;
+function _triggerAutoPersist() {
+  clearTimeout(_autoPersistTimer);
+  _autoPersistTimer = setTimeout(persistCurrent, 600);
 }
 
 function restoreCurrent() {
   try {
     const saved = JSON.parse(localStorage.getItem(CUR_KEY));
-    if (!saved || !saved.menu) return;
-    // 저장된 주차가 현재 주차와 다르면 무시 (다른 컴퓨터에서 이전 주차 복원 방지)
-    const curWeek = document.getElementById('weekStart').value;
-    if (saved.weekStart !== curWeek) return;
+    if (!saved || !saved.menu || !saved.menu.length) return;
+    // 저장된 주차로 weekStart 복원 (다른 주차 작업 중 복귀도 지원)
+    document.getElementById('weekStart').value = saved.weekStart;
     saved.menu.forEach(day => { day.date = new Date(day.date); });
     currentMenu = saved.menu;
     updateWeekDates();
     buildWeekButtons();
     renderMenu();
   } catch(e) {}
+}
+
+// ===== 모달 임시저장 (편집 중 끊겨도 복원) =====
+function saveModalDraft() {
+  if (!editTarget) return;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      editTarget,
+      name: (document.getElementById('editName') || {}).value || '',
+      origin: (document.getElementById('editOrigin') || {}).value || '',
+      midNote: (document.getElementById('editMidNote') || {}).value || '',
+      chips: editChips,
+      weekStart: document.getElementById('weekStart').value
+    }));
+  } catch(e) {}
+}
+
+function clearModalDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch(e) {}
+}
+
+function restoreModalDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
+    if (!draft || !draft.editTarget || !currentMenu) return;
+    if (draft.weekStart !== document.getElementById('weekStart').value) { clearModalDraft(); return; }
+    const { di, mi, ii, type } = draft.editTarget;
+    let valid = false;
+    if (type === 'menu' && currentMenu[di]?.menus?.[mi]) valid = true;
+    else if (type === 'yusik' && currentMenu[di]?.items?.[ii]) valid = true;
+    else if (type === 'soup' && currentMenu[di]?.soup) valid = true;
+    if (!valid) { clearModalDraft(); return; }
+    editTarget = draft.editTarget;
+    editChips = draft.chips || [];
+    renderChipEditor();
+    document.getElementById('chipPicker').className = 'chip-picker';
+    document.getElementById('editName').value = draft.name || '';
+    document.getElementById('editOrigin').value = draft.origin || '';
+    document.getElementById('editMidNote').value = draft.midNote || '';
+    if (type === 'menu') {
+      document.getElementById('suggestionsSection').style.display = 'none';
+      document.getElementById('midNoteSection').style.display = '';
+    } else {
+      document.getElementById('suggestionsSection').style.display = '';
+      document.getElementById('midNoteSection').style.display = 'none';
+      if (type === 'yusik') {
+        document.getElementById('suggestionsList').innerHTML = YUSIK_MAIN.map(m =>
+          `<span class="suggestion-chip other-chip" onclick="applyYusikSuggestion('${m.name}','${m.ingredients.replace(/'/g,"\\'")}')">${m.name}</span>`
+        ).join('');
+      } else {
+        document.getElementById('suggestionsList').innerHTML = YUSIK_SOUP.map(s =>
+          `<span class="suggestion-chip chicken-chip" onclick="applySoupSuggestion('${s.name}','${s.ingredients.replace(/'/g,"\\'")}')">${s.name}</span>`
+        ).join('');
+      }
+    }
+    document.getElementById('editModal').classList.add('active');
+    showToast('✏️ 편집 중이던 항목이 복원됐어요');
+  } catch(e) { clearModalDraft(); }
 }
 
 // 임시 편집 취소 — CUR_KEY 지우고 DB 저장 데이터로 복원
@@ -1097,8 +1162,8 @@ function renderDay(day, di) {
         <input
           type="text"
           value="${(day.origins||'').replace(/"/g,'&quot;')}"
-          onchange="currentMenu[${di}].origins=this.value"
-          oninput="currentMenu[${di}].origins=this.value"
+          onchange="currentMenu[${di}].origins=this.value; persistCurrent()"
+          oninput="currentMenu[${di}].origins=this.value; _triggerAutoPersist()"
           placeholder="예: 한우국내산, 알배추국내산, 파로이탈리아, 새송이국내산"
           style="width:100%;box-sizing:border-box;padding:7px 10px;font-size:12px;border:1px solid #f0d0b8;border-radius:8px;outline:none;font-family:inherit;color:#333;background:white;"
         />
@@ -1117,6 +1182,7 @@ function openEdit(di, mi) {
   document.getElementById('suggestionsSection').style.display = 'none';
   document.getElementById('midNoteSection').style.display = '';
   document.getElementById('editModal').classList.add('active');
+  saveModalDraft();
 }
 
 function openEditYusik(di, ii) {
@@ -1132,6 +1198,7 @@ function openEditYusik(di, ii) {
     `<span class="suggestion-chip other-chip" onclick="applyYusikSuggestion('${m.name}','${m.ingredients.replace(/'/g,"\\'")}')">${m.name}</span>`
   ).join('');
   document.getElementById('editModal').classList.add('active');
+  saveModalDraft();
 }
 
 function openEditSoup(di) {
@@ -1147,6 +1214,7 @@ function openEditSoup(di) {
     `<span class="suggestion-chip chicken-chip" onclick="applySoupSuggestion('${s.name}','${s.ingredients.replace(/'/g,"\\'")}')">${s.name}</span>`
   ).join('');
   document.getElementById('editModal').classList.add('active');
+  saveModalDraft();
 }
 
 // ===== 칩 에디터 =====
@@ -1195,6 +1263,7 @@ function renderChipEditor() {
   area.innerHTML += addBtn;
   area.classList.toggle('has-selection', selectedChipIdx >= 0 || chipTypingIdx >= 0);
   syncChipsToTextarea();
+  saveModalDraft();
   if (chipTypingIdx >= 0) setTimeout(() => { const el = document.getElementById('cti'); if (el){el.focus();el.select();} }, 0);
 }
 
@@ -1479,7 +1548,10 @@ function addYusik(di) {
   openEditYusik(di, newIdx);
 }
 
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+  if (id === 'editModal') clearModalDraft();
+}
 
 // ===== 요일 삭제 / 재생성 =====
 function removeDay(di) {
@@ -2563,10 +2635,23 @@ document.addEventListener('click', e => {
   if (e.target.classList.contains('modal-overlay')) closeModal('editModal');
 });
 
+// 앱 전환(카카오톡·전화 수신)·탭 닫기 시 즉시 자동저장
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) persistCurrent();
+});
+window.addEventListener('pagehide', function() {
+  persistCurrent();
+});
+
 initDatePicker();
 restoreCurrent();
 // 페이지 로드 시 이번주 데이터 자동 로드 (CUR_KEY 없으면 DB에서)
-selectWeekBtn(document.getElementById('weekStart').value);
+// restoreCurrent가 weekStart를 바꿀 수 있으므로 그 값을 사용
+(async function() {
+  await selectWeekBtn(document.getElementById('weekStart').value);
+  // 모달 편집 중 끊겼던 경우 재오픈
+  restoreModalDraft();
+})();
 </script>
 </body>
 </html>
