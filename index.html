@@ -938,8 +938,9 @@ function restoreCurrent() {
   try {
     const saved = JSON.parse(localStorage.getItem(CUR_KEY));
     if (!saved || !saved.menu || !saved.menu.length) return;
-    // 저장된 주차로 weekStart 복원 (다른 주차 작업 중 복귀도 지원)
-    document.getElementById('weekStart').value = saved.weekStart;
+    // 저장된 주차가 현재 주차와 같을 때만 복원 (다른 주차 덮어쓰기 방지)
+    const curWeek = document.getElementById('weekStart').value;
+    if (saved.weekStart !== curWeek) return;
     saved.menu.forEach(day => { day.date = new Date(day.date); });
     currentMenu = saved.menu;
     updateWeekDates();
