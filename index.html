@@ -369,7 +369,7 @@ const YUSIK_MAIN = [
   {name:'우엉조림', ingredients:'우엉, 원당'},
   {name:'감자채 버섯볶음', ingredients:'감자, 당근, 느타리버섯, 양파'},
   {name:'한돈 숙주볶음', ingredients:'한돈, 숙주, 당근, 양파'},
-  {name:'소고기 시금치 무침', ingredients:'소고기, 시금치, 참기름, 간장'},
+  {name:'소고기 시금치 무침', ingredients:'소고기, 시금치, 당근, 양파'},
   {name:'두부 채소 조림', ingredients:'두부, 당근, 쥬키니호박, 양파'},
 ];
 
@@ -542,6 +542,7 @@ async function recordThisWeek(weekKey, menuData) {
   const schedule = menuData.map(day => ({
     date: (day.date instanceof Date) ? day.date.toISOString().slice(0, 10) : day.date,
     type: day.type,
+    ...(day.removed ? { removed: true } : {}),
     items: day.type === 'yusik' ? (day.items || []).map(it => ({ name: it.name, ingredients: it.ingredients, origin: it.origin || '' })) : null,
     soup: day.type === 'yusik' ? { name: day.soup?.name || '', ingredients: day.soup?.ingredients || '', origin: day.soup?.origin || '' } : null,
     menus: day.type === 'yushik' ? (day.menus || []).map(m => ({
