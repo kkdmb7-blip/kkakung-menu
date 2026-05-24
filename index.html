@@ -2638,8 +2638,14 @@ document.addEventListener('click', e => {
 });
 
 // 앱 전환(카카오톡·전화 수신)·탭 닫기 시 즉시 자동저장
+// 앱 복귀 시 화면이 비어있으면 DB에서 재로드
 document.addEventListener('visibilitychange', function() {
-  if (document.hidden) persistCurrent();
+  if (document.hidden) {
+    persistCurrent();
+  } else {
+    const weekKey = document.getElementById('weekStart').value;
+    if (weekKey && !currentMenu) selectWeekBtn(weekKey);
+  }
 });
 window.addEventListener('pagehide', function() {
   persistCurrent();
