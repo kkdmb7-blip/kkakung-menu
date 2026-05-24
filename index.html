@@ -803,12 +803,21 @@ async function selectWeekBtn(weekKey) {
   updateWeekDates();
   buildWeekButtons(); // active 갱신
 
-  // DB 우선 조회 → 실패 시 localStorage 폴백
+  // DB 조회 + localStorage 타임스탬프 비교 → 더 새로운 쪽 사용
+  const localSaved = JSON.parse(localStorage.getItem(CUR_KEY) || '{}');
+  const localMatchesWeek = localSaved.weekStart === weekKey && localSaved.menu?.length;
+  const localTs = localSaved.ts || 0;
+
   try {
-    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=eq.${weekKey}&select=yusik`, { headers: SB_HEADERS });
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=eq.${weekKey}&select=yusik,updated_at`, { headers: SB_HEADERS });
     const rows = await res.json();
     const sched = rows[0]?.yusik?.schedule;
-    if (sched && sched.length) {
+    const dbTs = rows[0]?.updated_at ? new Date(rows[0].updated_at).getTime() : 0;
+    // 로컬 미저장 편집이 DB보다 새로우면 로컬 우선 (백그라운드 복귀 시 편집 보존)
+    if (localMatchesWeek && localTs > dbTs) {
+      localSaved.menu.forEach(d => { d.date = new Date(d.date); });
+      currentMenu = localSaved.menu;
+    } else if (sched && sched.length) {
       currentMenu = sched.map(d => {
         const date = new Date(d.date);
         const base = { date, dayName: '', type: d.type };
@@ -817,25 +826,18 @@ async function selectWeekBtn(weekKey) {
         return { ...base, menus: (d.menus || []).map(m => ({ ...m, displayName: m.name })) };
       });
       persistCurrent();
+    } else if (localMatchesWeek) {
+      localSaved.menu.forEach(d => { d.date = new Date(d.date); });
+      currentMenu = localSaved.menu;
     } else {
-      // DB에 없으면 localStorage 폴백
-      const saved = JSON.parse(localStorage.getItem(CUR_KEY) || '{}');
-      if (saved.weekStart === weekKey && saved.menu?.length) {
-        saved.menu.forEach(d => { d.date = new Date(d.date); });
-        currentMenu = saved.menu;
-      } else {
-        currentMenu = null;
-      }
+      currentMenu = null;
     }
   } catch(e) {
     // 네트워크 오류 시 localStorage 폴백
-    try {
-      const saved = JSON.parse(localStorage.getItem(CUR_KEY) || '{}');
-      if (saved.weekStart === weekKey && saved.menu?.length) {
-        saved.menu.forEach(d => { d.date = new Date(d.date); });
-        currentMenu = saved.menu;
-      } else { currentMenu = null; }
-    } catch { currentMenu = null; }
+    if (localMatchesWeek) {
+      localSaved.menu.forEach(d => { d.date = new Date(d.date); });
+      currentMenu = localSaved.menu;
+    } else { currentMenu = null; }
   }
   window._histCompareActive = false;
   renderCurrentInHistory();
