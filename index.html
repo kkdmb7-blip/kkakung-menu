@@ -2478,8 +2478,8 @@ function printMenuTable() {
     +'실제 한 끼에 섭취하는 나트륨 양은 이보다 더 낮아집니다.'
     +'</div></div>';
 
-  const yushikDays = allDays.filter(d => d.type==='yushik');
-  const yusikDays  = allDays.filter(d => d.type==='yusik');
+  const yushikDays = allDays.filter(d => d.type==='yushik' && (d.menus||[]).length > 0);
+  const yusikDays  = allDays.filter(d => d.type==='yusik' && (d.items||[]).length > 0);
   let pages = '';
   for (let i=0; i<yushikDays.length; i+=2) {
     const a = yushikCard(yushikDays[i]);
