@@ -858,10 +858,10 @@ function updateWeekDates() {
 function initDatePicker() {
   // 마지막으로 보던 주차 복원 (없으면 이번주)
   const lastWk = localStorage.getItem('kkakung_last_week');
-  const base = (lastWk && /^\d{4}-\d{2}-\d{2}$/.test(lastWk))
-    ? new Date(lastWk + 'T00:00:00')
-    : getBaseMonday();
-  document.getElementById('weekStart').value = formatDate(getMonday(base));
+  const weekStr = (lastWk && /^\d{4}-\d{2}-\d{2}$/.test(lastWk))
+    ? lastWk
+    : formatDate(getBaseMonday());
+  document.getElementById('weekStart').value = weekStr;
   updateWeekDates();
   buildWeekButtons();
 }
