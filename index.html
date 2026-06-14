@@ -684,23 +684,16 @@ function getWeekMondayByOffset(offset) {
 }
 
 function buildWeekButtons() {
-  const btns = [
-    { label: '4주전', offset: -4 },
-    { label: '3주전', offset: -3 },
-    { label: '2주전', offset: -2 },
-    { label: '1주전', offset: -1 },
-    { label: '이번주', offset: 0 },
-    { label: '다음주', offset: 1 },
-  ];
+  const offsets = [-4, -3, -2, -1, 0, 1];
   const box = document.getElementById('weekBtns');
   if (!box) return;
   const curWk = document.getElementById('weekStart').value;
-  box.innerHTML = btns.map(b => {
-    const mon = getWeekMondayByOffset(b.offset);
+  box.innerHTML = offsets.map(offset => {
+    const mon = getWeekMondayByOffset(offset);
     const wk = formatDate(mon);
-    const mmdd = `${mon.getMonth()+1}/${mon.getDate()}`;
+    const label = `${mon.getMonth()+1}/${mon.getDate()}`;
     const isActive = wk === curWk;
-    return `<button class="week-btn${isActive?' active':''}" onclick="selectWeekBtn('${wk}')" data-wk="${wk}">${b.label}<span style="font-size:10px;opacity:0.7;margin-left:3px">${mmdd}</span></button>`;
+    return `<button class="week-btn${isActive?' active':''}" onclick="selectWeekBtn('${wk}')" data-wk="${wk}">${label}</button>`;
   }).join('') +
   `<button class="week-btn" onclick="startCompare()" style="margin-left:auto;border-color:rgba(122,36,24,0.4);color:var(--primary);font-weight:700">↔ 전주 비교</button>`;
 }
