@@ -668,13 +668,7 @@ function getMonday(date) {
 
 // 기준: 일요일 00:00부터 이번주 = 다음 월요일 (토요일에 다음주 메뉴 작성 지원)
 function getBaseMonday() {
-  const now = new Date();
-  if (now.getDay() === 0) { // 일요일 → 내일(월요일)이 이번주
-    const next = new Date(now);
-    next.setDate(now.getDate() + 1);
-    return getMonday(next);
-  }
-  return getMonday(now);
+  return getMonday(new Date());
 }
 
 function getWeekMondayByOffset(offset) {
