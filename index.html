@@ -2276,6 +2276,10 @@ async function downloadImages() {
 function printMenuTable() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
   const allDays = currentMenu.filter(d => !d.removed);
+  const weekKey = document.getElementById('weekStart').value;
+  const PE_KEY = 'kkakung_print_edits_' + weekKey;
+  const ctr = {n:0};
+  const pe = () => ' data-pe="'+(ctr.n++)+'"';
   if (!allDays.length) { showToast('⚠️ 메뉴가 없어요'); return; }
 
   const SFXARR = ['죽','무른밥','진밥'];
@@ -2349,8 +2353,8 @@ function printMenuTable() {
       const cells = menus.map((m,mi) => {
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-          +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false">'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
-          +'<div style="padding:4px;font-size:11px;line-height:1.65;color:#333;text-align:center;height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false">'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+          +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false"'+pe()+'>'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
+          +'<div style="padding:4px;font-size:11px;line-height:1.65;color:#333;text-align:center;height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
           +'</td>';
       }).join('');
       return '<tr>'
@@ -2362,7 +2366,7 @@ function printMenuTable() {
     return '<div style="flex:1;display:flex;flex-direction:column;">'
       +'<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4mm;padding-bottom:3mm;border-bottom:2px solid #c0e8a8;">'
       +'<span style="display:inline-block;width:36px;height:36px;background:#ffda80;border-radius:50%;border:2px solid #c8a040;font-size:20px;line-height:36px;text-align:center;">🍼</span>'
-      +'<span contenteditable="true" spellcheck="false" class="gm" style="font-size:18px;font-weight:700;letter-spacing:.04em;color:#3a703a;">까꿍 디미방 '+dt+' 이유식 메뉴표</span>'
+      +'<span contenteditable="true" spellcheck="false" class="gm"'+pe()+' style="font-size:18px;font-weight:700;letter-spacing:.04em;color:#3a703a;">까꿍 디미방 '+dt+' 이유식 메뉴표</span>'
       +'</div>'
       +'<table style="width:100%;border-collapse:collapse;border:2px solid #c0e8a8;table-layout:fixed;">'
       +'<colgroup><col style="width:13%"><col style="width:29%"><col style="width:29%"><col style="width:29%"></colgroup>'
@@ -2372,8 +2376,8 @@ function printMenuTable() {
       +'</tr></thead>'
       +'<tbody>'+rows+'</tbody>'
       +'</table>'
-      +'<div contenteditable="true" spellcheck="false" style="background:#f7fcf5;border:1px solid #e0f0d8;border-radius:6px;padding:3mm 6mm;font-size:11px;color:#555;text-align:center;margin-top:4mm;word-break:keep-all;">'+ori+'</div>'
-      +'<div contenteditable="true" spellcheck="false" style="font-size:13px;font-weight:700;color:#5aae5a;text-align:center;margin-top:3mm;padding-top:3mm;border-top:1px solid #e4f4d8;">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>'
+      +'<div contenteditable="true" spellcheck="false"'+pe()+' style="background:#f7fcf5;border:1px solid #e0f0d8;border-radius:6px;padding:3mm 6mm;font-size:11px;color:#555;text-align:center;margin-top:4mm;word-break:keep-all;">'+ori+'</div>'
+      +'<div contenteditable="true" spellcheck="false"'+pe()+' style="font-size:13px;font-weight:700;color:#5aae5a;text-align:center;margin-top:3mm;padding-top:3mm;border-top:1px solid #e4f4d8;">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>'
       +'</div>';
   }
 
@@ -2412,8 +2416,8 @@ function printMenuTable() {
         ingHtml = '<div>( '+allIng.join(', ')+' )</div>';
       }
       return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-        +'<div style="background:'+HC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false">'+(idx+1)+'. '+(it.name||'')+'</div>'
-        +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false">'
+        +'<div style="background:'+HC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false"'+pe()+'>'+(idx+1)+'. '+(it.name||'')+'</div>'
+        +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false"'+pe()+'>'
         +ingHtml
         +'<div style="color:#666;margin-top:4px;word-break:keep-all;">'+oriP.join(', ')+'</div>'
         +'</div></td>';
@@ -2433,7 +2437,7 @@ function printMenuTable() {
     return '<div style="display:flex;flex-direction:column;height:281mm;">'
       +'<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4mm;padding-bottom:3mm;border-bottom:2px solid #c0e8a8;">'
       +'<span style="display:inline-block;width:36px;height:36px;background:#ffda80;border-radius:50%;border:2px solid #c8a040;font-size:20px;line-height:36px;text-align:center;">🍼</span>'
-      +'<span contenteditable="true" spellcheck="false" class="gm" style="font-size:18px;font-weight:700;letter-spacing:.04em;color:#3a703a;">까꿍 디미방 '+dt+' 유아식 메뉴표</span>'
+      +'<span contenteditable="true" spellcheck="false" class="gm"'+pe()+' style="font-size:18px;font-weight:700;letter-spacing:.04em;color:#3a703a;">까꿍 디미방 '+dt+' 유아식 메뉴표</span>'
       +'</div>'
       +'<table style="width:100%;border-collapse:collapse;border:2px solid #c0e8a8;table-layout:fixed;margin-bottom:3px;">'
       +'<colgroup><col style="width:33.3%"><col style="width:33.3%"><col style="width:33.4%"></colgroup>'
@@ -2441,8 +2445,8 @@ function printMenuTable() {
       +'<tr>'+cellHtml(0)+cellHtml(1)+cellHtml(2)+'</tr>'
       +'<tr>'+cellHtml(3)+cellHtml(4)
       +'<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-      +'<div style="background:'+SC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false">6. '+(soup.name||'국')+'</div>'
-      +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false">'
+      +'<div style="background:'+SC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false"'+pe()+'>6. '+(soup.name||'국')+'</div>'
+      +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false"'+pe()+'>'
       +(()=>{const sAll=[...sNonS,...sSfx];if(sAll.length>=5){const m=Math.ceil(sAll.length/2);return'<div>( '+sAll.slice(0,m).join(', ')+',</div><div>'+sAll.slice(m).join(', ')+' )</div>';}return'<div>( '+sAll.join(', ')+' )</div>';})()
       +'<div style="color:#666;margin-top:4px;word-break:keep-all;">'+sOri+'</div>'
       +'</div></td>'
@@ -2507,6 +2511,7 @@ function printMenuTable() {
     +'</style>'
     +'<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>'
     +'<script>'
+    +'const PE_KEY=\''+PE_KEY+'\';'
     +'function doPrint(){const t=document.title;document.title=\'\';setTimeout(()=>{window.print();setTimeout(()=>{document.title=t;},500);},50);}'
     +'async function saveJpg(){'
     +'  const pages=document.querySelectorAll(\'.a4p\');'
@@ -2522,14 +2527,37 @@ function printMenuTable() {
     +'  }'
     +'  btn.textContent=\'🖼️ JPG 저장\';btn.disabled=false;'
     +'}'
+    +'function saveEdits(){'
+    +'  const map={};'
+    +'  document.querySelectorAll(\'[data-pe]\').forEach(el=>{map[el.dataset.pe]=el.innerHTML;});'
+    +'  localStorage.setItem(PE_KEY,JSON.stringify(map));'
+    +'  const btn=document.getElementById(\'saveBtn\');'
+    +'  btn.textContent=\'✅ 저장됨\';setTimeout(()=>{btn.textContent=\'📌 편집 저장\';},1500);'
+    +'}'
+    +'function resetEdits(){'
+    +'  localStorage.removeItem(PE_KEY);'
+    +'  location.reload();'
+    +'}'
+    +'window.addEventListener(\'load\',()=>{'
+    +'  const raw=localStorage.getItem(PE_KEY);'
+    +'  if(!raw)return;'
+    +'  try{'
+    +'    const map=JSON.parse(raw);'
+    +'    document.querySelectorAll(\'[data-pe]\').forEach(el=>{'
+    +'      if(map[el.dataset.pe]!==undefined)el.innerHTML=map[el.dataset.pe];'
+    +'    });'
+    +'  }catch(e){}'
+    +'});'
     +'<\/script>'
     +'</head><body>'
     +'<div class="np">'
     +'<button class="bp" onclick="doPrint()">🖨️ 인쇄 / PDF 저장</button>'
     +'<button id="jpgBtn" class="bp" style="background:#4a7a9a;" onclick="saveJpg()">🖼️ JPG 저장</button>'
+    +'<button id="saveBtn" class="bp" style="background:#7a5a9a;" onclick="saveEdits()">📌 편집 저장</button>'
+    +'<button class="bc" onclick="resetEdits()">↺ 초기화</button>'
     +'<button class="bc" onclick="window.close()">닫기</button>'
     +'</div>'
-    +'<div class="ht">✏️ 텍스트 클릭해서 수정 후 인쇄</div>'
+    +'<div class="ht">✏️ 텍스트 클릭해서 수정 &nbsp;|&nbsp; 📌 편집 저장으로 다음번에도 반영</div>'
     +pages
     +'</body></html>';
 
