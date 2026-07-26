@@ -400,10 +400,11 @@ const SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` };
 // ===== 서버 경유 쓰기 (RLS 보호 · 비밀번호 인증) =====
 // 읽기(SELECT)는 anon으로 그대로, 쓰기/삭제만 /api/save-menu(service_role)로.
 function getMenuPassword(force) {
-  let pw = sessionStorage.getItem('menu_pw');
+  // 기기당 최초 1회만 입력 → localStorage에 저장돼 자동 유지 (브라우저 꺼도 유지)
+  let pw = localStorage.getItem('menu_pw');
   if (!pw || force) {
-    pw = prompt('메뉴 편집 비밀번호를 입력하세요');
-    if (pw) sessionStorage.setItem('menu_pw', pw);
+    pw = prompt('메뉴 편집 비밀번호 (최초 1회만 · 이 기기에서 자동 저장됩니다)');
+    if (pw) localStorage.setItem('menu_pw', pw);
   }
   return pw;
 }
@@ -416,7 +417,7 @@ async function serverWrite(payload) {
       body: JSON.stringify({ ...payload, password: pw })
     });
     const d = await res.json().catch(() => ({}));
-    if (res.status === 401) { sessionStorage.removeItem('menu_pw'); return { ok: false, error: d.error || '비밀번호 오류' }; }
+    if (res.status === 401) { localStorage.removeItem('menu_pw'); return { ok: false, error: d.error || '비밀번호 오류' }; }
     if (!res.ok || !d.ok) return { ok: false, error: d.error || ('HTTP ' + res.status) };
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
