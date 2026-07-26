@@ -397,6 +397,31 @@ const CACHE_KEY = 'kkakung_history_v3';
 const MAX_WEEKS = 5;
 const SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` };
 
+// ===== 서버 경유 쓰기 (RLS 보호 · 비밀번호 인증) =====
+// 읽기(SELECT)는 anon으로 그대로, 쓰기/삭제만 /api/save-menu(service_role)로.
+function getMenuPassword(force) {
+  let pw = sessionStorage.getItem('menu_pw');
+  if (!pw || force) {
+    pw = prompt('메뉴 편집 비밀번호를 입력하세요');
+    if (pw) sessionStorage.setItem('menu_pw', pw);
+  }
+  return pw;
+}
+async function serverWrite(payload) {
+  const pw = getMenuPassword();
+  if (!pw) return { ok: false, error: '비밀번호 미입력' };
+  try {
+    const res = await fetch('/api/save-menu', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, password: pw })
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.status === 401) { sessionStorage.removeItem('menu_pw'); return { ok: false, error: d.error || '비밀번호 오류' }; }
+    if (!res.ok || !d.ok) return { ok: false, error: d.error || ('HTTP ' + res.status) };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
 // 주차별 row(id=YYYY-MM-DD) 모두 로드 → 통합 history 형태 반환
 async function loadHistory() {
   try {
@@ -446,24 +471,14 @@ async function saveWeek(weekKey, yusikMenus, veggie, schedule) {
     },
     updated_at: new Date().toISOString()
   };
-  try {
-    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history`, {
-      method: 'POST',
-      headers: { ...SB_HEADERS, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(()=>'');
-      alert('저장 실패 (서버 ' + res.status + '): ' + txt.slice(0,150));
-      return false;
-    }
-    // 성공 → 4주 초과 row 정리
-    cleanupOldWeeks();
-    return true;
-  } catch(e) {
-    alert('저장 실패 (네트워크): ' + e.message);
+  const r = await serverWrite({ action: 'upsert', row: body });
+  if (!r.ok) {
+    alert('저장 실패: ' + r.error);
     return false;
   }
+  // 성공 → 4주 초과 row 정리
+  cleanupOldWeeks();
+  return true;
 }
 
 async function cleanupOldWeeks() {
@@ -473,9 +488,7 @@ async function cleanupOldWeeks() {
     const rows = await res.json();
     if (rows.length <= MAX_WEEKS) return;
     for (const r of rows.slice(MAX_WEEKS)) {
-      await fetch(`${SB_URL}/rest/v1/kkakung_history?id=eq.${encodeURIComponent(r.id)}`, {
-        method: 'DELETE', headers: SB_HEADERS
-      }).catch(()=>{});
+      await serverWrite({ action: 'delete', id: r.id }).catch(()=>{});
     }
   } catch(e) { console.warn('cleanup failed', e); }
 }
@@ -2552,15 +2565,7 @@ function printMenuTable() {
     +'  });'
     +'  localStorage.setItem(\'kkakung_print_perma\',JSON.stringify(perma));'
     +'  const btn=document.getElementById(\'permaBtn\');'
-    +'  btn.textContent=\'저장 중...\';btn.disabled=true;'
-    +'  try{'
-    +'    await fetch(SB_URL+\'/rest/v1/kkakung_history\',{'
-    +'      method:\'POST\','
-    +'      headers:{...SB_H,\'Prefer\':\'resolution=merge-duplicates,return=minimal\'},'
-    +'      body:JSON.stringify({id:\'__perma__\',yusik:{perma}})'
-    +'    });'
-    +'    btn.textContent=\'✅ 영구 저장됨\';'
-    +'  }catch(e){btn.textContent=\'⚠️ 오류\';}'
+    +'  btn.textContent=\'✅ 저장됨(이 기기)\';'
     +'  btn.disabled=false;setTimeout(()=>{btn.textContent=\'🔒 영구 추가\';},2000);'
     +'}'
     +'function resetEdits(){'
