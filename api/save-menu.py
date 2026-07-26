@@ -57,22 +57,25 @@ class handler(BaseHTTPRequestHandler):
 
         action = data.get('action')
 
-        if action == 'upsert':
-            row = data.get('row')
-            if not isinstance(row, dict) or not row.get('id'):
-                return self._send(400, {'error': 'invalid row'})
-            code, txt = _sb('POST', 'kkakung_history', row)
-            if code >= 300:
-                return self._send(502, {'error': f'db {code}: {txt[:200]}'})
-            return self._send(200, {'ok': True})
+        try:
+            if action == 'upsert':
+                row = data.get('row')
+                if not isinstance(row, dict) or not row.get('id'):
+                    return self._send(400, {'error': 'invalid row'})
+                code, txt = _sb('POST', 'kkakung_history', row)
+                if code >= 300:
+                    return self._send(502, {'error': f'db {code}: {txt[:200]}'})
+                return self._send(200, {'ok': True})
 
-        if action == 'delete':
-            wid = str(data.get('id', ''))
-            if not wid:
-                return self._send(400, {'error': 'id required'})
-            code, txt = _sb('DELETE', f'kkakung_history?id=eq.{urllib.parse.quote(wid)}')
-            if code >= 300:
-                return self._send(502, {'error': f'db {code}: {txt[:200]}'})
-            return self._send(200, {'ok': True})
+            if action == 'delete':
+                wid = str(data.get('id', ''))
+                if not wid:
+                    return self._send(400, {'error': 'id required'})
+                code, txt = _sb('DELETE', f'kkakung_history?id=eq.{urllib.parse.quote(wid)}')
+                if code >= 300:
+                    return self._send(502, {'error': f'db {code}: {txt[:200]}'})
+                return self._send(200, {'ok': True})
 
-        return self._send(400, {'error': 'unknown action'})
+            return self._send(400, {'error': 'unknown action'})
+        except Exception as e:
+            return self._send(500, {'error': f'{type(e).__name__}: {str(e)[:200]}'})
