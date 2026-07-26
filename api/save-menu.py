@@ -3,6 +3,7 @@ import json
 import os
 import urllib.request
 import urllib.error
+import urllib.parse
 
 SB_URL = os.environ.get('SB_URL', 'https://ymghmfkqctckxxysxkvy.supabase.co')
 SB_SERVICE_KEY = os.environ.get('SB_SERVICE_KEY', '')
@@ -69,7 +70,7 @@ class handler(BaseHTTPRequestHandler):
             wid = str(data.get('id', ''))
             if not wid:
                 return self._send(400, {'error': 'id required'})
-            code, txt = _sb('DELETE', f'kkakung_history?id=eq.{urllib.request.quote(wid)}')
+            code, txt = _sb('DELETE', f'kkakung_history?id=eq.{urllib.parse.quote(wid)}')
             if code >= 300:
                 return self._send(502, {'error': f'db {code}: {txt[:200]}'})
             return self._send(200, {'ok': True})
