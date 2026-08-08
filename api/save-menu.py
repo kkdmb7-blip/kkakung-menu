@@ -113,6 +113,33 @@ class handler(BaseHTTPRequestHandler):
                     return self._send(502, {'error': f'db {code}: {txt[:200]}'})
                 return self._send(200, {'ok': True, 'count': len(rows)})
 
+            if action == 'add_dish':
+                dtype = data.get('type')
+                name = str(data.get('name', '')).strip()
+                ingredients = str(data.get('ingredients', '')).strip()
+                if dtype not in ('main', 'soup') or not name or not ingredients:
+                    return self._send(400, {'error': 'invalid dish'})
+                dish_id = f'{dtype}|{name}'
+                code, txt = _sb('POST', 'kkakung_dish_pool_added', {'id': dish_id, 'type': dtype, 'name': name, 'ingredients': ingredients})
+                if code >= 300:
+                    return self._send(502, {'error': f'db {code}: {txt[:200]}'})
+                # 예전에 삭제했다가 같은 이름으로 다시 추가하는 경우 삭제목록에서도 빼줌
+                _sb('DELETE', f'kkakung_dish_pool_removed?id=eq.{urllib.parse.quote(dish_id)}')
+                return self._send(200, {'ok': True})
+
+            if action == 'delete_dish':
+                dtype = data.get('type')
+                name = str(data.get('name', '')).strip()
+                if dtype not in ('main', 'soup') or not name:
+                    return self._send(400, {'error': 'invalid dish'})
+                dish_id = f'{dtype}|{name}'
+                # 직접 추가했던 반찬이면 추가목록에서 지우고, 원래 있던(하드코딩) 반찬이면 삭제목록에 기록
+                _sb('DELETE', f'kkakung_dish_pool_added?id=eq.{urllib.parse.quote(dish_id)}')
+                code, txt = _sb('POST', 'kkakung_dish_pool_removed', {'id': dish_id, 'type': dtype, 'name': name})
+                if code >= 300:
+                    return self._send(502, {'error': f'db {code}: {txt[:200]}'})
+                return self._send(200, {'ok': True})
+
             return self._send(400, {'error': 'unknown action'})
         except Exception as e:
             return self._send(500, {'error': f'{type(e).__name__}: {str(e)[:200]}'})
