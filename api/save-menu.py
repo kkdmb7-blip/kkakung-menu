@@ -76,6 +76,20 @@ class handler(BaseHTTPRequestHandler):
                     return self._send(502, {'error': f'db {code}: {txt[:200]}'})
                 return self._send(200, {'ok': True})
 
+            if action == 'save_pairing':
+                a = str(data.get('ingredient_a', '')).strip()
+                b = str(data.get('ingredient_b', '')).strip()
+                verdict = data.get('verdict')
+                note = data.get('note') or None
+                if not a or not b or verdict not in ('good', 'avoid'):
+                    return self._send(400, {'error': 'invalid pairing'})
+                pair_id = '|'.join(sorted([a, b]))
+                row = {'id': pair_id, 'ingredient_a': a, 'ingredient_b': b, 'verdict': verdict, 'note': note}
+                code, txt = _sb('POST', 'kkakung_custom_pairings', row)
+                if code >= 300:
+                    return self._send(502, {'error': f'db {code}: {txt[:200]}'})
+                return self._send(200, {'ok': True, 'id': pair_id})
+
             return self._send(400, {'error': 'unknown action'})
         except Exception as e:
             return self._send(500, {'error': f'{type(e).__name__}: {str(e)[:200]}'})
