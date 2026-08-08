@@ -90,6 +90,29 @@ class handler(BaseHTTPRequestHandler):
                     return self._send(502, {'error': f'db {code}: {txt[:200]}'})
                 return self._send(200, {'ok': True, 'id': pair_id})
 
+            if action == 'save_ingredient':
+                name = str(data.get('name', '')).strip()
+                if not name:
+                    return self._send(400, {'error': 'name required'})
+                code, txt = _sb('POST', 'kkakung_custom_ingredients', {'name': name})
+                if code >= 300:
+                    return self._send(502, {'error': f'db {code}: {txt[:200]}'})
+                return self._send(200, {'ok': True})
+
+            if action == 'sync_ingredients':
+                # 기기 로컬(localStorage)에 예전부터 쌓여있던 재료 목록을 서버로 한 번에 옮길 때 씀.
+                # PK가 name이라 겹치는 건 자동으로 합쳐짐(merge-duplicates).
+                names = data.get('names')
+                if not isinstance(names, list):
+                    return self._send(400, {'error': 'names must be a list'})
+                rows = [{'name': str(n).strip()} for n in names if str(n).strip()]
+                if not rows:
+                    return self._send(200, {'ok': True, 'count': 0})
+                code, txt = _sb('POST', 'kkakung_custom_ingredients', rows)
+                if code >= 300:
+                    return self._send(502, {'error': f'db {code}: {txt[:200]}'})
+                return self._send(200, {'ok': True, 'count': len(rows)})
+
             return self._send(400, {'error': 'unknown action'})
         except Exception as e:
             return self._send(500, {'error': f'{type(e).__name__}: {str(e)[:200]}'})

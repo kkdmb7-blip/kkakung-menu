@@ -1583,7 +1583,7 @@ function showChipPicker(idx) {
 let addingMode = false;
 let addPickerKnownIngreds = new Set(); // showAddPicker가 화면에 띄운 후보 전체(표준+자주쓰는재료) — 직접입력 중복 검사용
 
-function addChip() {
+async function addChip() {
   if (addingMode) { // 다시 누르면 취소
     addingMode = false;
     renderChipEditor();
@@ -1594,6 +1594,7 @@ function addChip() {
   selectedChipIdx = -1;
   chipTypingIdx = -1;
   renderChipEditor();
+  await loadCustomIngreds(); // 다른 기기(직원)가 등록한 재료까지 최신으로 받아옴
   showAddPicker();
 }
 
@@ -1683,24 +1684,51 @@ function chipTouchEnd(e) {
   _touchDragIdx = -1;
 }
 
-const CUSTOM_INGRED_KEY = 'kkakung_custom_ingreds';
-function getCustomIngreds() {
-  try { return JSON.parse(localStorage.getItem(CUSTOM_INGRED_KEY) || '[]'); } catch { return []; }
-}
-function saveCustomIngred(val) {
-  const list = getCustomIngreds();
-  // 정확히 같은 문자열뿐 아니라 앞뒤 공백만 다른 것도 같은 재료로 침 (트림 후 비교)
-  if (!list.some(x => x.trim() === val)) { list.push(val); localStorage.setItem(CUSTOM_INGRED_KEY, JSON.stringify(list)); }
+// ===== 자주 쓰는 재료(직접입력) =====
+// 예전엔 localStorage(기기별 저장)라서 직원 폰에서 추가한 재료가 사장님 폰에는 하나도 안 보이는
+// 문제가 있었음 — Supabase 공유 테이블로 옮김. 기기에 예전부터 쌓여있던 로컬 목록은 처음 열 때
+// 자동으로 서버에 한 번 올려주고(마이그레이션), 그 뒤로는 서버 목록만 씀.
+const OLD_CUSTOM_INGRED_KEY = 'kkakung_custom_ingreds';
+const CUSTOM_INGRED_MIGRATED_KEY = 'kkakung_custom_ingreds_migrated_v1';
+let customIngredsCache = [];
+
+async function migrateLocalIngredsIfNeeded() {
+  if (localStorage.getItem(CUSTOM_INGRED_MIGRATED_KEY)) return;
+  let local = [];
+  try { local = JSON.parse(localStorage.getItem(OLD_CUSTOM_INGRED_KEY) || '[]'); } catch (e) {}
+  if (local.length) {
+    const result = await serverWrite({ action: 'sync_ingredients', names: local });
+    if (!result.ok) return; // 실패하면 플래그 안 세우고 다음에 다시 시도
+  }
+  localStorage.setItem(CUSTOM_INGRED_MIGRATED_KEY, '1');
 }
 
-function addCustomIngred() {
+async function loadCustomIngreds() {
+  await migrateLocalIngredsIfNeeded();
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_custom_ingredients?select=name`, { headers: SB_HEADERS });
+    if (res.ok) customIngredsCache = (await res.json()).map(r => r.name);
+  } catch (e) { console.warn('자주 쓰는 재료 로드 실패', e); }
+}
+
+function getCustomIngreds() {
+  return customIngredsCache;
+}
+
+async function saveCustomIngred(val) {
+  if (!customIngredsCache.includes(val)) customIngredsCache.push(val); // 낙관적 업데이트
+  const result = await serverWrite({ action: 'save_ingredient', name: val });
+  if (!result.ok) console.warn('재료 저장 실패', result.error);
+}
+
+async function addCustomIngred() {
   const input = document.getElementById('customIngredInput');
   const val = (input?.value || '').trim();
   if (!val) return;
   if (!editChips.includes(val)) editChips.push(val);
   // 이미 표준 목록이나 "자주 쓰는 재료"에 있는 이름이면 저장하지 않음 — 같은 재료가
   // 표준/커스텀 두 군데에 겹쳐 보이던 원인
-  if (!addPickerKnownIngreds.has(val)) saveCustomIngred(val);
+  if (!addPickerKnownIngreds.has(val)) await saveCustomIngred(val);
   addingMode = false;
   selectedChipIdx = -1;
   renderChipEditor();
