@@ -80,7 +80,7 @@ header {
 .modal-section input:focus, .modal-section textarea:focus { border-color: var(--primary); }
 .modal-section textarea { resize: vertical; min-height: 80px; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.suggestion-chip { padding: 6px 12px; border-radius: 50px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
+.suggestion-chip { padding: 6px 12px; border-radius: 50px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; border: 1px solid transparent; white-space: nowrap; flex-shrink: 0; }
 .suggestion-chip.hanwoo-chip { background: var(--primary-light); color: var(--primary); border-color: #f5c5aa; }
 .suggestion-chip.hanwoo-chip:hover { background: var(--primary); color: white; }
 .suggestion-chip.chicken-chip { background: var(--secondary-light); color: var(--secondary); border-color: #b8e0ce; }
@@ -98,6 +98,7 @@ header {
   padding: 5px 12px; border-radius: 50px; font-size: 12px; font-weight: 500;
   cursor: pointer; background: var(--bg); border: 1px solid var(--border);
   color: var(--text); transition: all 0.15s; user-select: none;
+  white-space: nowrap; flex-shrink: 0;
 }
 .ingred-chip:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
 .ingred-chip.selected { background: var(--primary); color: white; border-color: var(--primary); }
@@ -108,6 +109,7 @@ header {
 .chip-picker {
   display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding: 10px 12px;
   background: var(--bg); border-radius: 10px; border: 1px solid var(--border);
+  align-items: flex-start; max-width: 100%; overflow-x: hidden; box-sizing: border-box;
 }
 .chip-picker.active { display: flex; }
 .chip-picker-label { font-size: 11px; color: var(--text-light); width: 100%; margin-bottom: 2px; }
@@ -1618,12 +1620,16 @@ function showAddPicker() {
   }
   options = options.sort((a, b) => a.localeCompare(b, 'ko'));
 
-  // "직접 입력"으로 추가했던 재료 중 이미 표준 목록(options)에도 있는 건 두 군데 다 보이면
-  // 중복처럼 보이니 표준 쪽만 남기고 자주 쓰는 재료 섹션에서는 뺌. 가나다순 정렬도 여기서 적용.
-  const optionSet = new Set(options);
-  const customIngreds = getCustomIngreds().filter(o => o && !used.has(o) && !optionSet.has(o)).sort((a, b) => a.localeCompare(b, 'ko'));
-  // addCustomIngred()에서 "이미 있는 재료인지" 검사할 때 쓰려고 지금 화면에 뜬 전체 후보를 기억해둠
-  addPickerKnownIngreds = new Set([...options, ...customIngreds]);
+  // "직접 입력"으로 추가했던 재료 중 이미 어딘가의 표준 목록에도 있는 건 자주 쓰는 재료 섹션에서
+  // 뺌. 예전엔 "지금 편집 중인 종류(한우/닭/기타단백질)"의 표준 목록하고만 비교해서, 예를 들어
+  // 한우 요리를 편집할 땐 렌틸콩·강황쌀처럼 기타단백질 표준 재료가 전부 "자주 쓰는 재료"로
+  // 잘못 분류돼 화면을 가득 채우는 문제가 있었음 — 전 카테고리(ALL_INGREDIENTS) 기준으로 비교.
+  const allIngredientSet = new Set(ALL_INGREDIENTS);
+  const customIngreds = getCustomIngreds().filter(o => o && !used.has(o) && !allIngredientSet.has(o)).sort((a, b) => a.localeCompare(b, 'ko'));
+  // addCustomIngred()에서 "이미 있는 재료인지" 검사할 때 쓰려고 지금 화면에 뜬 전체 후보 +
+  // 다른 카테고리 표준 재료까지 전부 기억해둠 (직접입력이 다른 종류 표준재료와 겹쳐서
+  // 또 저장되는 것 방지)
+  addPickerKnownIngreds = new Set([...options, ...customIngreds, ...ALL_INGREDIENTS]);
 
   const cc = mtype === 'hanwoo' ? 'hanwoo-chip' : mtype === 'chicken' ? 'chicken-chip' : 'other-chip';
   const customHtml = customIngreds.length
