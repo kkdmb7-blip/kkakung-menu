@@ -1632,8 +1632,13 @@ function showAddPicker() {
   addPickerKnownIngreds = new Set([...options, ...customIngreds, ...ALL_INGREDIENTS]);
 
   const cc = mtype === 'hanwoo' ? 'hanwoo-chip' : mtype === 'chicken' ? 'chicken-chip' : 'other-chip';
+  // ⚠️ 예전엔 이 칩들이 그냥 <div> 안에 있어서 바깥 .chip-picker의 flex-wrap/row-gap이 전혀
+  // 안 먹혔음(줄바꿈은 flex가 아니라 일반 inline 흐름이라 gap 자체가 적용 안 되는 요소였음) —
+  // 그래서 표준 재료 칩(아래 무리)만 간격이 넓어지고 자주 쓰는 재료(위 무리)는 그대로였던 것.
+  // div 자체를 flex 컨테이너로 만들어서 아래 무리와 똑같은 간격 규칙을 받게 함.
   const customHtml = customIngreds.length
-    ? `<div style="margin-bottom:6px;"><span style="font-size:11px;color:#888;font-weight:700;">자주 쓰는 재료</span> `
+    ? `<div style="width:100%;display:flex;flex-wrap:wrap;row-gap:10px;column-gap:6px;align-items:center;margin-bottom:6px;">`
+      + `<span style="font-size:11px;color:#888;font-weight:700;width:100%;">자주 쓰는 재료</span>`
       + customIngreds.map(o => `<span class="suggestion-chip" style="background:#fff3e0;color:#b06000;border-color:#f0b060;" onclick="addFromPicker('${o.replace(/'/g,"\\'")}')">${o}</span>`).join('')
       + `</div>` : '';
   picker.innerHTML = `<span class="chip-picker-label">추가할 재료 선택:</span>`
