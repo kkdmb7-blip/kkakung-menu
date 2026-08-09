@@ -198,6 +198,7 @@ html, body { overflow-x: hidden; }
 <header>
   <div class="logo"><span>🍚</span> 까꿍 디미방</div>
   <div style="display:flex;gap:8px">
+    <button class="btn btn-ghost" onclick="copyLastWeek()" title="가장 최근 저장된 주 메뉴를 그대로 가져와서 이번 주 편집을 시작해요">📋 지난주 그대로</button>
     <button class="btn btn-primary" onclick="generateMenu()">🎲 메뉴 새로 뽑기</button>
   </div>
 </header>
@@ -302,16 +303,17 @@ html, body { overflow-x: hidden; }
     </div>
     <div class="modal-section">
       <label>새 반찬 추가</label>
-      <input type="text" id="dishAddName" placeholder="이름 (예: 소고기 브로콜리조림)" style="margin-bottom:6px;">
-      <input type="text" id="dishAddIngredients" placeholder="재료 (쉼표로 구분, 예: 소고기, 브로콜리, 당근, 양파)">
+      <input type="text" id="dishAddName" placeholder="이름 (예: 소고기 브로콜리조림)" style="margin-bottom:6px;" onkeydown="if(event.key==='Enter'){document.getElementById('dishAddIngredients').focus();event.preventDefault();}">
+      <input type="text" id="dishAddIngredients" placeholder="재료 (쉼표로 구분, 예: 소고기, 브로콜리, 당근, 양파)" onkeydown="if(event.key==='Enter'){addDishUI();event.preventDefault();}">
       <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="addDishUI()">+ 추가</button>
     </div>
     <div class="modal-section">
       <label>전체 목록</label>
+      <input type="text" id="dishManageSearch" placeholder="반찬 이름 검색" style="margin-bottom:8px;" oninput="renderDishManageList(this.value)">
       <div id="dishManageList"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('dishManageModal')">닫기</button>
+      <button class="btn btn-ghost" onclick="closeDishManage()">닫기</button>
     </div>
   </div>
 </div>
@@ -1159,6 +1161,39 @@ function initDatePicker() {
   buildWeekButtons();
 }
 
+// 지난주에 저장된 메뉴 구성을 그대로 이번 주 날짜에 얹어서 시작 — 매번 처음부터 다시 뽑거나
+// 수동으로 하나씩 옮기지 않아도 되게. 저장된 스케줄(day별 items/soup/menus)을 그대로 복제하고
+// 날짜만 이번 주 것으로 바꿈.
+async function copyLastWeek() {
+  const startVal = document.getElementById('weekStart').value;
+  if (!startVal) { showToast('⚠️ 날짜를 먼저 선택해주세요'); return; }
+  if (currentMenu && currentMenu.length) {
+    if (!confirm('현재 보이는 메뉴를 지난주 메뉴로 덮어쓸까요?\n\n[확인] 지난주 메뉴로 덮어쓰기\n[취소] 그대로 유지')) return;
+  }
+  showToast('⏳ 지난주 메뉴 불러오는 중...');
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=lt.${startVal}&select=id,yusik&order=id.desc&limit=1`, { headers: SB_HEADERS });
+    const rows = await res.json();
+    const sched = rows[0]?.yusik?.schedule;
+    if (!sched || !sched.length) { showToast('⚠️ 복사할 지난 기록이 없어요'); return; }
+    const monday = new Date(startVal);
+    currentMenu = sched.map((d, i) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      const base = { date, dayName: '', type: d.type };
+      if (d.removed) return { ...base, removed: true, menus: [] };
+      if (d.type === 'yusik') return { ...base, items: (d.items || []).map(it => ({ ...it })), soup: d.soup ? { ...d.soup } : { name: '', ingredients: '' } };
+      return { ...base, menus: (d.menus || []).map(m => ({ ...m, displayName: m.name })) };
+    });
+    _isDirty = true;
+    renderMenu();
+    document.getElementById('bottomInfo').textContent = `${formatKorDate(monday)} ~ ${formatKorDate(new Date(monday.getTime() + 4 * 86400000))} 메뉴 (지난주 복사됨, 미저장)`;
+    showToast(`✅ ${rows[0].id} 주 메뉴를 복사했어요`);
+  } catch (e) {
+    showToast('❌ 불러오기 실패: ' + e.message);
+  }
+}
+
 async function generateMenu() {
   const startVal = document.getElementById('weekStart').value;
   if (!startVal) { showToast('⚠️ 날짜를 먼저 선택해주세요'); return; }
@@ -1812,32 +1847,101 @@ async function applyDishOverrides() {
     const removedSoup = new Set(removed.filter(r => r.type === 'soup').map(r => r.name));
     for (let i = YUSIK_MAIN.length - 1; i >= 0; i--) if (removedMain.has(YUSIK_MAIN[i].name)) YUSIK_MAIN.splice(i, 1);
     for (let i = YUSIK_SOUP.length - 1; i >= 0; i--) if (removedSoup.has(YUSIK_SOUP[i].name)) YUSIK_SOUP.splice(i, 1);
-    added.filter(a => a.type === 'main').forEach(a => { if (!YUSIK_MAIN.some(m => m.name === a.name)) YUSIK_MAIN.push({ name: a.name, ingredients: a.ingredients }); });
-    added.filter(a => a.type === 'soup').forEach(a => { if (!YUSIK_SOUP.some(m => m.name === a.name)) YUSIK_SOUP.push({ name: a.name, ingredients: a.ingredients }); });
+    // 이름이 이미 있으면(하드코딩 원본이든 이전에 추가한 것이든) 재료만 덮어씀 — add_dish가
+    // 신규추가뿐 아니라 "수정"으로도 쓰일 수 있게(같은 이름으로 다시 저장하면 그게 곧 수정).
+    added.filter(a => a.type === 'main').forEach(a => {
+      const existing = YUSIK_MAIN.find(m => m.name === a.name);
+      if (existing) existing.ingredients = a.ingredients; else YUSIK_MAIN.push({ name: a.name, ingredients: a.ingredients });
+    });
+    added.filter(a => a.type === 'soup').forEach(a => {
+      const existing = YUSIK_SOUP.find(m => m.name === a.name);
+      if (existing) existing.ingredients = a.ingredients; else YUSIK_SOUP.push({ name: a.name, ingredients: a.ingredients });
+    });
   } catch (e) { console.warn('반찬 목록 동기화 실패', e); }
 }
 
 let dishManageType = 'main';
+let dishEditingName = null;
 
 function openDishManage() {
   dishManageType = 'main';
+  dishEditingName = null;
+  document.querySelectorAll('.dish-manage-tab').forEach(t => t.classList.toggle('active', t.dataset.type === 'main')); // ⚠️ 전에 국 탭 보다가 닫고 다시 열면 탭 표시만 국에 남아있던 버그
+  document.getElementById('dishManageSearch').value = '';
+  document.getElementById('dishAddName').value = '';
+  document.getElementById('dishAddIngredients').value = '';
   document.getElementById('dishManageModal').classList.add('active');
   renderDishManageList();
 }
 
+function closeDishManage() {
+  document.getElementById('dishManageModal').classList.remove('active');
+  // ⚠️ 반찬 편집 모달이 밑에 열려있는 상태에서 여기서 추가/삭제하면, "추천 선택" 목록이
+  // YUSIK_MAIN을 그대로 참조하고 있어도 이미 그려진 화면(innerHTML)은 안 바뀌어 있었음 — 다시 그림.
+  if (document.getElementById('suggestionsSection').style.display !== 'none') {
+    renderSuggestionsList(document.getElementById('suggestionsSearchInput')?.value || '');
+  }
+}
+
 function switchDishManageType(type) {
   dishManageType = type;
+  dishEditingName = null;
   document.querySelectorAll('.dish-manage-tab').forEach(t => t.classList.toggle('active', t.dataset.type === type));
+  document.getElementById('dishManageSearch').value = '';
+  // ⚠️ 반찬 탭에서 이름/재료 입력하다가 국 탭으로 바꾸면 그 내용이 그대로 남아있어서
+  // 엉뚱한 종류로 등록될 뻔한 문제 — 탭 바꾸면 입력폼도 같이 비움.
+  document.getElementById('dishAddName').value = '';
+  document.getElementById('dishAddIngredients').value = '';
   renderDishManageList();
 }
 
-function renderDishManageList() {
+function renderDishManageList(query) {
+  const q = (query || '').trim();
   const pool = dishManageType === 'main' ? YUSIK_MAIN : YUSIK_SOUP;
+  const filtered = (q ? pool.filter(d => d.name.includes(q)) : pool)
+    .slice().sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const list = document.getElementById('dishManageList');
-  list.innerHTML = pool.length ? pool.map(d =>
-    `<div class="dish-manage-row"><div class="dish-manage-info"><div class="dish-manage-name">${d.name}</div><div class="dish-manage-ing">${d.ingredients}</div></div>`
-    + `<button class="dish-manage-del" onclick="deleteDishUI('${d.name.replace(/'/g, "\\'")}')">삭제</button></div>`
-  ).join('') : '<p style="font-size:12px;color:var(--text-light);text-align:center;padding:20px 0;">등록된 게 없어요</p>';
+  if (!filtered.length) {
+    list.innerHTML = `<p style="font-size:12px;color:var(--text-light);text-align:center;padding:20px 0;">${q ? '검색 결과가 없어요' : '등록된 게 없어요'}</p>`;
+    return;
+  }
+  list.innerHTML = filtered.map(d => {
+    if (d.name === dishEditingName) {
+      return `<div class="dish-manage-row" style="flex-direction:column;align-items:stretch;gap:6px;">`
+        + `<div class="dish-manage-name">${d.name}</div>`
+        + `<input type="text" id="dishEditIngInput" value="${d.ingredients.replace(/"/g, '&quot;')}" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;">`
+        + `<div style="display:flex;gap:6px;">`
+        + `<button class="btn btn-primary" style="flex:1;padding:6px;font-size:12px;" onclick="saveEditDish('${d.name.replace(/'/g, "\\'")}')">저장</button>`
+        + `<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:12px;" onclick="cancelEditDish()">취소</button>`
+        + `</div></div>`;
+    }
+    return `<div class="dish-manage-row">`
+      + `<div class="dish-manage-info" style="cursor:pointer;" onclick="startEditDish('${d.name.replace(/'/g, "\\'")}')">`
+      + `<div class="dish-manage-name">${d.name} <span style="font-size:10px;color:var(--text-light);font-weight:400;">✏️ 재료수정</span></div>`
+      + `<div class="dish-manage-ing">${d.ingredients}</div></div>`
+      + `<button class="dish-manage-del" onclick="deleteDishUI('${d.name.replace(/'/g, "\\'")}')">삭제</button></div>`;
+  }).join('');
+}
+
+function startEditDish(name) {
+  dishEditingName = name;
+  renderDishManageList(document.getElementById('dishManageSearch').value);
+}
+function cancelEditDish() {
+  dishEditingName = null;
+  renderDishManageList(document.getElementById('dishManageSearch').value);
+}
+async function saveEditDish(name) {
+  const ingredients = document.getElementById('dishEditIngInput').value.trim();
+  if (!ingredients) { showToast('⚠️ 재료를 입력해주세요'); return; }
+  const result = await serverWrite({ action: 'add_dish', type: dishManageType, name, ingredients });
+  if (!result.ok) { showToast('❌ 수정 실패: ' + (result.error || '')); return; }
+  const pool = dishManageType === 'main' ? YUSIK_MAIN : YUSIK_SOUP;
+  const dish = pool.find(d => d.name === name);
+  if (dish) dish.ingredients = ingredients;
+  dishEditingName = null;
+  renderDishManageList(document.getElementById('dishManageSearch').value);
+  showToast('✅ 재료가 수정됐어요 — 모든 기기에 반영됩니다');
 }
 
 async function addDishUI() {
@@ -1847,24 +1951,36 @@ async function addDishUI() {
   const ingredients = ingInput.value.trim();
   if (!name || !ingredients) { showToast('⚠️ 이름과 재료를 다 입력해주세요'); return; }
   const pool = dishManageType === 'main' ? YUSIK_MAIN : YUSIK_SOUP;
-  if (pool.some(d => d.name === name)) { showToast('⚠️ 이미 같은 이름의 반찬이 있어요'); return; }
+  if (pool.some(d => d.name === name)) { showToast('⚠️ 이미 같은 이름의 반찬이 있어요 — 목록에서 이름을 눌러 재료를 수정해주세요'); return; }
   const result = await serverWrite({ action: 'add_dish', type: dishManageType, name, ingredients });
   if (!result.ok) { showToast('❌ 추가 실패: ' + (result.error || '')); return; }
   pool.push({ name, ingredients });
   nameInput.value = ''; ingInput.value = '';
-  renderDishManageList();
+  renderDishManageList(document.getElementById('dishManageSearch').value);
   showToast('✅ 반찬 추가됐어요 — 모든 기기에 반영됩니다');
 }
 
 async function deleteDishUI(name) {
   if (!confirm(`"${name}"를 반찬 목록에서 완전히 삭제할까요?\n(이미 이번 주 메뉴에 들어가 있어도 그건 그대로 남고, 앞으로 추천/자동생성에서만 빠져요)`)) return;
-  const result = await serverWrite({ action: 'delete_dish', type: dishManageType, name });
-  if (!result.ok) { showToast('❌ 삭제 실패: ' + (result.error || '')); return; }
-  const pool = dishManageType === 'main' ? YUSIK_MAIN : YUSIK_SOUP;
+  const typeAtDelete = dishManageType;
+  const pool = typeAtDelete === 'main' ? YUSIK_MAIN : YUSIK_SOUP;
   const idx = pool.findIndex(d => d.name === name);
+  const removedDish = idx >= 0 ? { ...pool[idx] } : null;
+  const result = await serverWrite({ action: 'delete_dish', type: typeAtDelete, name });
+  if (!result.ok) { showToast('❌ 삭제 실패: ' + (result.error || '')); return; }
   if (idx >= 0) pool.splice(idx, 1);
-  renderDishManageList();
-  showToast('🗑 삭제됐어요 — 모든 기기에 반영됩니다');
+  renderDishManageList(document.getElementById('dishManageSearch').value);
+  showToast('🗑 삭제됐어요 — 모든 기기에 반영됩니다', removedDish ? {
+    label: '실행취소',
+    onClick: async () => {
+      const r = await serverWrite({ action: 'add_dish', type: typeAtDelete, name: removedDish.name, ingredients: removedDish.ingredients });
+      if (!r.ok) { showToast('❌ 복구 실패: ' + (r.error || '')); return; }
+      const p = typeAtDelete === 'main' ? YUSIK_MAIN : YUSIK_SOUP;
+      if (!p.some(d => d.name === removedDish.name)) p.push({ ...removedDish });
+      if (dishManageType === typeAtDelete) renderDishManageList(document.getElementById('dishManageSearch').value);
+      showToast('↩️ 복구됐어요');
+    }
+  } : null);
 }
 
 function getCustomIngreds() {
@@ -1988,11 +2104,20 @@ function saveEdit() {
 
 function deleteYusik(di, ii) {
   if (currentMenu[di].items.length <= 3) { showToast('⚠️ 최소 3개는 있어야 해요'); return; }
+  const removed = currentMenu[di].items[ii];
   currentMenu[di].items.splice(ii, 1);
   _isDirty = true;
   persistCurrent();
   renderMenu();
-  showToast('🗑️ 메뉴가 삭제됐어요');
+  showToast('🗑️ 메뉴가 삭제됐어요', {
+    label: '실행취소',
+    onClick: () => {
+      currentMenu[di].items.splice(ii, 0, removed);
+      _isDirty = true;
+      persistCurrent();
+      renderMenu();
+    }
+  });
 }
 
 function addYusik(di) {
@@ -3136,15 +3261,28 @@ async function downloadPDF() {
   }
 }
 
-function showToast(msg) {
+// ⚠️ 예전엔 토스트가 연달아 뜨면(예: "저장 중..." 다음에 바로 "저장됐어요") 각자 따로
+// setTimeout을 걸어서, 먼저 뜬 토스트의 타이머가 나중 토스트를 조기에 숨겨버리는 경우가 있었음
+// — 타이머를 하나만 유지해서 매번 이전 걸 취소하고 새로 걺.
+let _toastTimer = null;
+function showToast(msg, action) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
+  t.innerHTML = `<span>${msg}</span>` + (action
+    ? `<button id="toastActionBtn" style="background:rgba(255,255,255,0.22);border:none;color:#fff;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">${action.label}</button>`
+    : '');
+  if (action) document.getElementById('toastActionBtn').onclick = () => { action.onClick(); t.classList.remove('show'); };
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), action ? 5000 : 2800);
 }
 
+// ⚠️ 예전엔 어느 모달의 배경을 눌러도 무조건 editModal을 닫도록 하드코딩돼 있었음 — editModal이
+// 안 열려있을 때(예: 반찬관리/재료궁합 모달 배경 클릭)도 clearModalDraft()가 같이 호출돼서,
+// 저장돼있던 편집 초안이 예기치 않게 지워질 수 있었음. 실제로 클릭된 모달을 닫도록 수정.
 document.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-overlay')) closeModal('editModal');
+  if (!e.target.classList.contains('modal-overlay')) return;
+  if (e.target.id === 'dishManageModal') closeDishManage();
+  else closeModal(e.target.id || 'editModal');
 });
 
 // 앱 전환(카카오톡·전화 수신)·탭 닫기 시 즉시 자동저장
