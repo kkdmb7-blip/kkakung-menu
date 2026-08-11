@@ -1,0 +1,15 @@
+{
+  "name": "까꿍 디미방 메뉴 생성기",
+  "short_name": "까꿍메뉴",
+  "description": "반찬·국 메뉴를 뽑고 관리하는 디미방 메뉴 생성기",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FDF8F3",
+  "theme_color": "#E8845A",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
