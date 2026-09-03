@@ -217,6 +217,17 @@ html, body { overflow-x: hidden; }
 .dup-btns .dup-fix { background: var(--primary); color: #fff; }
 .dup-btns .dup-go { background: #fff; color: #666; border: 1.5px solid #ddd; }
 .dup-btns button:active { transform: scale(.97); filter: brightness(.95); }
+/* 재료 사용 이력 배지 */
+.usage-badge { font-size:9px; font-weight:700; padding:1px 5px; border-radius:99px; margin-left:2px; white-space:nowrap; }
+.usage-badge.recent { background:#FFE8E0; color:#c2410c; }
+.usage-badge.old { background:#EEF2F7; color:#64748b; }
+/* 재료 준비 목록 */
+.shop-head { font-size:12px; font-weight:700; color:var(--primary); margin:0 0 6px; }
+.shop-row { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid #f1f1f1; font-size:13px; }
+.shop-row:last-child { border-bottom:none; }
+.shop-row b { flex:1; }
+.shop-days { font-size:11px; color:#888; }
+.shop-cnt { font-size:11px; font-weight:700; color:#a06a00; background:#FFF6E5; padding:2px 7px; border-radius:99px; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -257,7 +268,23 @@ html, body { overflow-x: hidden; }
     <button class="btn btn-ghost" onclick="printMenuTable()" style="background:#e8f4e8;color:#2a7a2a;border-color:#8ac08a;">🖨️ 메뉴표 인쇄 / PDF</button>
     <button class="btn btn-ghost" onclick="resetToSaved()" style="color:var(--primary)">🔄 서버 새로고침</button>
     <button class="btn btn-ghost" onclick="openPairingCheck()" style="background:#F0EEFF;color:#8B6FE8;border-color:#d4c8f8;">🥕 재료 궁합</button>
+    <button class="btn btn-ghost" onclick="openShoppingList()" style="background:#FFF6E5;color:#a06a00;border-color:#f0d69a;">🧺 재료 준비 목록</button>
     <button class="btn btn-secondary" onclick="saveMenu()">💾 이번 주 저장</button>
+  </div>
+</div>
+
+<!-- 재료 준비 목록 -->
+<div class="modal-overlay" id="shoppingModal">
+  <div class="modal">
+    <h3>🧺 이번 주 재료 준비 목록</h3>
+    <p style="font-size:12px;color:var(--text-light);margin:-6px 0 12px;line-height:1.55">
+      이번 주 메뉴에 들어가는 재료를 모아 셌어요. 몇 개 메뉴에 쓰이는지도 함께 나와요.
+    </p>
+    <div id="shoppingContent" style="max-height:56vh;overflow-y:auto"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="copyShoppingList()" style="flex:1">📋 목록 복사</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('shoppingModal').classList.remove('active')" style="flex:1">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -1358,6 +1385,8 @@ function restoreModalDraft() {
       }
     }
     document.getElementById('editModal').classList.add('active');
+  // 이력을 받아오면 칩에 '3주 전' 배지가 붙는다 (없어도 편집엔 지장 없음)
+  loadIngredHistory().then(() => { if (document.getElementById('editModal').classList.contains('active')) renderChipEditor(); });
     showToast('✏️ 편집 중이던 항목이 복원됐어요');
   } catch(e) { clearModalDraft(); }
 }
@@ -1538,6 +1567,8 @@ function openEdit(di, mi) {
   document.getElementById('suggestionsSection').style.display = 'none';
   document.getElementById('midNoteSection').style.display = '';
   document.getElementById('editModal').classList.add('active');
+  // 이력을 받아오면 칩에 '3주 전' 배지가 붙는다 (없어도 편집엔 지장 없음)
+  loadIngredHistory().then(() => { if (document.getElementById('editModal').classList.contains('active')) renderChipEditor(); });
   saveModalDraft();
 }
 
@@ -1552,6 +1583,8 @@ function openEditYusik(di, ii) {
   document.getElementById('suggestionsSection').style.display = '';
   setSuggestions(YUSIK_MAIN, 'other-chip', 'applyYusikSuggestion');
   document.getElementById('editModal').classList.add('active');
+  // 이력을 받아오면 칩에 '3주 전' 배지가 붙는다 (없어도 편집엔 지장 없음)
+  loadIngredHistory().then(() => { if (document.getElementById('editModal').classList.contains('active')) renderChipEditor(); });
   saveModalDraft();
 }
 
@@ -1566,6 +1599,8 @@ function openEditSoup(di) {
   document.getElementById('suggestionsSection').style.display = '';
   setSuggestions(YUSIK_SOUP, 'chicken-chip', 'applySoupSuggestion');
   document.getElementById('editModal').classList.add('active');
+  // 이력을 받아오면 칩에 '3주 전' 배지가 붙는다 (없어도 편집엔 지장 없음)
+  loadIngredHistory().then(() => { if (document.getElementById('editModal').classList.contains('active')) renderChipEditor(); });
   saveModalDraft();
 }
 
@@ -1608,7 +1643,7 @@ function renderChipEditor() {
       ontouchmove="chipTouchMove(event)"
       ontouchend="chipTouchEnd(event)"
       style="display:inline-flex;align-items:center;gap:4px;cursor:grab;touch-action:none">` +
-      `<span onclick="onChipClick(${i})">${chip}</span>` +
+      `<span onclick="onChipClick(${i})">${chip}</span>` + usageBadge(chip) +
       `<span onclick="removeChip(${i})" style="opacity:0.5;font-size:10px;cursor:pointer;line-height:1" title="삭제">✕</span>` +
       `</span>`;
   }).join('');
@@ -2195,6 +2230,129 @@ async function regenDay(di) {
 }
 
 // ===== 저장 =====
+// ===== 재료 준비 목록 =====
+// 그 주에 뭘 사야 하는지 메뉴표를 보고 사람이 세고 있었다. 그걸 대신 세준다.
+// 밑재료(양파·육수 등)도 사야 하는 건 마찬가지라 여기서는 빼지 않고 따로 묶어서 보여준다.
+const SHOPPING_BASE = new Set(['양파','채소상탕','채소육수','한우육수','닭육수','소금']);
+
+function buildShoppingList() {
+  const main = {};   // 재료 -> { count, days:Set, menus:[] }
+  const base = {};
+  (currentMenu || []).forEach(day => {
+    if (day.removed) return;
+    const dayName = day.dayName || '';
+    const collect = (ingredients, menuName) => {
+      String(ingredients || '').split(',').forEach(raw => {
+        const ing = raw.trim();
+        if (!ing) return;
+        const bucket = SHOPPING_BASE.has(ing) ? base : main;
+        const e = (bucket[ing] = bucket[ing] || { count: 0, days: [], menus: [] });
+        e.count++;
+        if (dayName && !e.days.includes(dayName)) e.days.push(dayName);
+        if (menuName && !e.menus.includes(menuName)) e.menus.push(menuName);
+      });
+    };
+    if (day.type === 'yushik') {
+      (day.menus || []).forEach(m => collect(m.ingredients, m.displayName || m.name));
+    } else if (day.type === 'yusik') {
+      (day.items || []).forEach(it => collect(it.ingredients, it.name));
+      if (day.soup) collect(day.soup.ingredients, day.soup.name);
+    }
+  });
+  const toList = obj => Object.keys(obj)
+    .map(k => ({ name: k, ...obj[k] }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  return { main: toList(main), base: toList(base) };
+}
+
+function openShoppingList() {
+  if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
+  const { main, base } = buildShoppingList();
+  const rowsHtml = list => list.map(x =>
+    `<div class="shop-row"><b>${escapeDup(x.name)}</b>` +
+    `<span class="shop-days">${x.days.join('·')}</span>` +
+    `<span class="shop-cnt">${x.count}개 메뉴</span></div>`).join('');
+  document.getElementById('shoppingContent').innerHTML =
+    (main.length ? `<div class="shop-head">주재료 ${main.length}가지</div>` + rowsHtml(main)
+                 : '<p style="color:var(--text-light);font-size:13px">재료가 없어요</p>')
+    + (base.length ? `<div class="shop-head" style="margin-top:14px">밑재료 ${base.length}가지</div>` + rowsHtml(base) : '');
+  document.getElementById('shoppingModal').classList.add('active');
+}
+
+function copyShoppingList() {
+  const { main, base } = buildShoppingList();
+  const week = document.getElementById('weekStart').value || '';
+  const line = x => `${x.name} (${x.count}개 메뉴 · ${x.days.join('·')})`;
+  const text = `[까꿍디미방 재료 준비 ${week}]\n\n■ 주재료\n`
+    + main.map(line).join('\n')
+    + (base.length ? `\n\n■ 밑재료\n` + base.map(line).join('\n') : '');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('📋 목록을 복사했어요')).catch(() => showToast('복사에 실패했어요'));
+  } else { showToast('이 환경에서는 복사가 안 돼요'); }
+}
+
+// ===== 재료 사용 이력 =====
+// "브로콜리 마지막으로 쓴 게 언제였지?"를 메뉴 짜는 중에 알 수 있게 한다.
+// 전주 비교는 바로 앞 주만 보여줘서, 3~4주 전에 쓴 재료가 겹치는 건 못 잡았다.
+// kkakung_history에 이미 몇 달치가 쌓여 있으므로 그걸 그대로 쓴다.
+let _ingredHistory = null;   // { '브로콜리': { last:'2026-08-11', weeks:['2026-08-11', ...] } }
+let _ingredHistoryAt = 0;
+
+// 밑재료는 매주 들어가므로 이력을 봐도 의미가 없다
+const USAGE_SKIP = new Set(['양파','채소상탕','채소육수','한우육수','닭육수','소금','한우','닭','닭가슴살','']);
+
+async function loadIngredHistory(force) {
+  // 편집 중 매번 부르지 않게 10분간 재사용
+  if (!force && _ingredHistory && Date.now() - _ingredHistoryAt < 600000) return _ingredHistory;
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_history?id=like.20*&select=id,yusik&order=id.desc&limit=40`, { headers: SB_HEADERS });
+    if (!res.ok) throw new Error('load fail');
+    const rows = await res.json();
+    const map = {};
+    rows.forEach(row => {
+      const weekId = row.id;
+      ((row.yusik && row.yusik.schedule) || []).forEach(day => {
+        if (day.type !== 'yushik' || day.removed) return;
+        (day.menus || []).forEach(m => {
+          String(m.ingredients || '').split(',').forEach(raw => {
+            const ing = raw.trim();
+            if (!ing || USAGE_SKIP.has(ing)) return;
+            const e = (map[ing] = map[ing] || { last: '', weeks: [] });
+            if (!e.weeks.includes(weekId)) e.weeks.push(weekId);
+            if (weekId > e.last) e.last = weekId;
+          });
+        });
+      });
+    });
+    _ingredHistory = map;
+    _ingredHistoryAt = Date.now();
+  } catch (e) {
+    _ingredHistory = _ingredHistory || {}; // 실패해도 편집은 계속 되게
+  }
+  return _ingredHistory;
+}
+
+// 이번 주 기준으로 "몇 주 전"인지. 못 찾으면 null
+function weeksAgoOf(ingredient) {
+  if (!_ingredHistory) return null;
+  const e = _ingredHistory[String(ingredient || '').trim()];
+  if (!e || !e.last) return null;
+  const cur = document.getElementById('weekStart') ? document.getElementById('weekStart').value : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cur) || !/^\d{4}-\d{2}-\d{2}$/.test(e.last)) return null;
+  const diff = Math.round((new Date(cur + 'T00:00:00Z') - new Date(e.last + 'T00:00:00Z')) / (7 * 86400000));
+  return { weeks: diff, last: e.last, count: e.weeks.length };
+}
+
+// 칩 옆에 붙는 라벨. 최근일수록 눈에 띄게.
+function usageBadge(ingredient) {
+  const u = weeksAgoOf(ingredient);
+  if (!u) return '';
+  if (u.weeks <= 0) return '';                       // 이번 주 안에서의 중복은 중복검사가 따로 잡는다
+  const label = u.weeks === 1 ? '지난주' : u.weeks + '주 전';
+  const cls = u.weeks <= 2 ? 'recent' : 'old';
+  return `<span class="usage-badge ${cls}" title="마지막 사용 ${u.last} · 최근 ${u.count}주 사용">${label}</span>`;
+}
+
 // ===== 중기에서 빼야 하는 재료 =====
 // 새우는 중기 이유식에 넣지 않는다. 예전엔 "중기 주의" 칸에 사람이 직접 "새우 제외"를 적어야 했고,
 // 적는 걸 잊으면 그대로 나갔다(실제로 인쇄물에 새우가 그냥 들어간 적 있음).
