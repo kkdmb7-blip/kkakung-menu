@@ -1492,7 +1492,7 @@ function renderDay(day, di) {
         <div class="menu-num ${numClass}">${mi+1}</div>
         <div class="menu-content">
           <div class="menu-ingredients" style="font-weight:700;color:var(--text)">${highlightIngreds(normalizeYushikIngredients(menu.ingredients, menu.type))}</div>
-          ${menu.midNote ? `<div style="font-size:11px;color:#b84a1a;margin-top:3px;font-weight:600">⚠️ 중기: ${menu.midNote}</div>` : ''}
+          ${midNoteOf(menu) ? `<div style="font-size:11px;color:#b84a1a;margin-top:3px;font-weight:600">⚠️ 중기: ${midNoteOf(menu)}</div>` : ''}
         </div>
         <div class="menu-actions">
           <button class="action-btn edit" onclick="openEdit(${di},${mi})">✏️</button>
@@ -2195,6 +2195,30 @@ async function regenDay(di) {
 }
 
 // ===== 저장 =====
+// ===== 중기에서 빼야 하는 재료 =====
+// 새우는 중기 이유식에 넣지 않는다. 예전엔 "중기 주의" 칸에 사람이 직접 "새우 제외"를 적어야 했고,
+// 적는 걸 잊으면 그대로 나갔다(실제로 인쇄물에 새우가 그냥 들어간 적 있음).
+// 이제 재료에 들어 있으면 자동으로 표시되게 고정한다. 나중에 뺄 재료가 생기면 여기만 고치면 됨.
+const MID_STAGE_BANNED = ['새우'];
+
+// 이 메뉴에 중기 금지 재료가 들어 있으면 그 목록을 돌려준다
+function bannedForMidStage(ingredients) {
+  const list = String(ingredients || '').split(',').map(x => x.trim());
+  return MID_STAGE_BANNED.filter(b => list.some(x => x === b || x.includes(b)));
+}
+
+// 화면·저장·인쇄에 쓸 "중기 주의" 문구. 사람이 직접 적은 메모가 있으면 같이 보여준다.
+function midNoteOf(menu) {
+  if (!menu) return '';
+  const banned = bannedForMidStage(menu.ingredients);
+  const auto = banned.length ? banned.join('·') + ' 제외' : '';
+  const manual = String(menu.midNote || '').trim();
+  if (!auto) return manual;
+  // 사람이 이미 같은 내용을 적어뒀으면 중복해서 붙이지 않는다
+  if (manual && banned.every(b => manual.includes(b))) return manual;
+  return manual ? auto + ' / ' + manual : auto;
+}
+
 // ===== 저장 전 재료 중복 검사 =====
 // 같은 단백질(한우/닭/기타) 안에서 같은 재료가 여러 날 나오면, 그 메뉴를 계속 시키는 아기는
 // 같은 걸 반복해서 먹게 된다. 메뉴를 짜다 보면 놓치기 쉬워서 저장 직전에 한 번 잡아준다.
@@ -2491,7 +2515,7 @@ function renderDayCard(day, accentBg, dupeSet, dupeColorMap) {
       h += `<div style="margin-bottom:5px;padding:5px 7px;background:#fafafa;border-radius:5px">`;
       const ing = normalizeYushikIngredients(m.ingredients||'', m.type);
       if (ing) h += `<div style="font-size:11px;font-weight:700;color:var(--text);line-height:1.4">${highlightDupes(ing, dupeSet, dupeColorMap)}</div>`;
-      if (m.midNote) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${m.midNote}</div>`;
+      if (midNoteOf(m)) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${midNoteOf(m)}</div>`;
       h += '</div>';
     });
   }
@@ -2558,7 +2582,7 @@ function renderEditableDayCard(day, di, accentBg, dupeSet, dupeColorMap) {
       h += `<div style="margin-bottom:5px;padding:5px 7px;background:#fafafa;border-radius:5px;display:flex;align-items:flex-start;gap:6px">`;
       h += `<div style="flex:1">`;
       if (ing) h += `<div style="font-size:11px;font-weight:700;color:var(--text);line-height:1.4">${highlightDupes(ing, dupeSet, dupeColorMap)}</div>`;
-      if (m.midNote) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${m.midNote}</div>`;
+      if (midNoteOf(m)) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${midNoteOf(m)}</div>`;
       h += `</div><button onclick="openEditAndRefresh(${di},${mi})" style="background:none;border:none;font-size:12px;cursor:pointer;padding:0;flex-shrink:0;opacity:0.7">✏️</button>`;
       h += '</div>';
     });
@@ -2681,7 +2705,7 @@ function renderSelectedWeek() {
           html += `<div style="margin-bottom:8px;padding:6px 8px;background:#fafafa;border-radius:6px">`;
           const _ing = normalizeYushikIngredients(m.ingredients||'', m.type);
           if (_ing) html += `<div style="font-size:12px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:2px">${_ing}</div>`;
-          if (m.midNote) html += `<div style="font-size:10px;color:#b84a1a;font-weight:600">⚠️ 중기: ${m.midNote}</div>`;
+          if (midNoteOf(m)) html += `<div style="font-size:10px;color:#b84a1a;font-weight:600">⚠️ 중기: ${midNoteOf(m)}</div>`;
           html += '</div>';
         });
       }
@@ -2874,6 +2898,8 @@ async function downloadImages() {
         // 이유식 - 3개 메뉴에서 이름/재료 추출
         const menus = day.menus.map(m => ({
           name: (m.displayName || m.name).replace(' 죽/무른밥/진밥',''),
+          // 인쇄물에 "중기: 새우 제외"가 빠져서 그냥 나가던 문제 — 이미지에도 함께 넘긴다
+          mid_note: midNoteOf(m),
           ingred: m.ingredients.split(',').map(s => s.trim()).reduce((acc, _, i, arr) => {
             if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', '));
             return acc;
@@ -3308,6 +3334,7 @@ async function downloadPDF() {
       if (day.type === 'yushik') {
         const menus = day.menus.map(m => ({
           name: (m.displayName || m.name).replace(' 죽/무른밥/진밥',''),
+          mid_note: midNoteOf(m),
           ingred: m.ingredients.split(',').map(s => s.trim()).reduce((acc, _, i, arr) => {
             if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', ')); return acc;
           }, [])

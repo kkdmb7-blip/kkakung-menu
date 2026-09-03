@@ -72,6 +72,8 @@ def make_yushik_image(data):
     f_stgsub = get_font('regular', 11)
     f_mname  = get_font('bold', 13)
     f_ingred = get_font('regular', 12)
+    f_note   = get_font('bold', 11)
+    COL_WARN = (184, 74, 26)  # 화면의 중기 주의 문구와 같은 색
     f_origin = get_font('light', 10)
     f_slogan = get_font('bold', 13)
     f_hdr    = get_font('bold', 15)
@@ -118,6 +120,13 @@ def make_yushik_image(data):
                 bb = draw.textbbox((0,0), il, font=f_ingred)
                 draw.text((mx+(COLMW-(bb[2]-bb[0]))//2, iy), il, fill=COL_MID, font=f_ingred)
                 iy += 17
+            # 중기(첫 줄)에만 "새우 제외" 같은 주의 문구를 넣는다.
+            # 예전엔 이 문구가 이미지에 아예 없어서, 화면에만 보이고 인쇄물엔 그냥 나갔다.
+            if ri == 0:
+                note = str(menu.get('mid_note') or '').strip()
+                if note:
+                    bb = draw.textbbox((0,0), note, font=f_note)
+                    draw.text((mx+(COLMW-(bb[2]-bb[0]))//2, ry+ROW_H-17), note, fill=COL_WARN, font=f_note)
 
     oy = TR + TABLE_H + 14
     bb = draw.textbbox((0,0), origins, font=f_origin)
@@ -150,6 +159,8 @@ def make_yusik_image(data):
     f_title  = get_font('bold', 26)
     f_iname  = get_font('bold', 14)
     f_ingred = get_font('regular', 12)
+    f_note   = get_font('bold', 11)
+    COL_WARN = (184, 74, 26)  # 화면의 중기 주의 문구와 같은 색
     f_orig   = get_font('light', 10)
     f_slogan = get_font('bold', 13)
     f_info   = get_font('regular', 12)
