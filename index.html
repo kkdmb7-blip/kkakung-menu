@@ -228,6 +228,14 @@ html, body { overflow-x: hidden; }
 .shop-row b { flex:1; }
 .shop-days { font-size:11px; color:#888; }
 .shop-cnt { font-size:11px; font-weight:700; color:#a06a00; background:#FFF6E5; padding:2px 7px; border-radius:99px; }
+/* 재료 과다 알림 */
+.heavy-item { padding:10px 12px; border-bottom:1px solid #f2f2f2; }
+.heavy-item:last-child { border-bottom:none; }
+.heavy-top { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:5px; }
+.heavy-flag { font-size:11px; font-weight:700; padding:2px 7px; border-radius:99px; background:#FFF6E5; color:#a06a00; }
+.heavy-flag.warn { background:#FFE8E0; color:#c2410c; }
+.heavy-ing { font-size:13px; color:#333; line-height:1.5; }
+.heavy-note { font-size:11px; color:#c2410c; margin-top:4px; font-weight:600; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -2377,6 +2385,83 @@ function midNoteOf(menu) {
   return manual ? auto + ' / ' + manual : auto;
 }
 
+// ===== 저장 전 재료 개수 검사 =====
+// 실제 저장된 51개 메뉴를 세어보니 2개(67%)·4개(26%)가 대부분이고 5개는 한 번뿐이었다.
+// 재료가 많아지면 단계별로 빼야 할 게 늘어서(중기는 새우 빼고, 후기는 연두부 빼고…)
+// 조리도 헷갈리고 손님 설명도 어려워진다. 넘으면 저장 전에 한 번 물어본다.
+const MAX_INGREDIENTS = 4;  // 밑재료·단백질 빼고 센 개수
+
+// 밑재료는 매번 들어가므로 개수에서 뺀다
+const COUNT_SKIP = new Set(['양파', '채소상탕', '채소육수', '한우육수', '닭육수', '소금', '']);
+// 단백질이 한 메뉴에 둘 이상 들어가면 단계마다 다른 걸 먹게 된다
+const PROTEIN_WORDS = ['새우', '연두부', '두부', '대구살', '연어', '가자미', '계란노른자', '달걀노른자',
+                       '아기치즈', '병아리콩', '렌틸콩', '한우', '닭가슴살', '닭'];
+
+function mainIngredientsOf(menu) {
+  return String(menu && menu.ingredients || '').split(',')
+    .map(x => x.trim())
+    .filter(x => x && !COUNT_SKIP.has(x));
+}
+
+// 재료가 너무 많거나 단백질이 겹치는 메뉴를 찾는다
+function findHeavyMenus() {
+  const out = [];
+  (currentMenu || []).forEach(day => {
+    if (day.type !== 'yushik' || day.removed) return;
+    (day.menus || []).forEach(m => {
+      const list = mainIngredientsOf(m);
+      // 단백질(한우/닭가슴살 등 주재료 포함) 개수
+      const proteins = list.filter(x => PROTEIN_WORDS.some(w => x.includes(w)));
+      const tooMany = list.length > MAX_INGREDIENTS;
+      const multiProtein = proteins.length > 1;
+      if (!tooMany && !multiProtein) return;
+      out.push({
+        day: day.dayName || '',
+        typeName: typeLabel(m.type),
+        name: m.displayName || m.name || '',
+        list, count: list.length, proteins, tooMany, multiProtein,
+      });
+    });
+  });
+  return out;
+}
+
+// 팝업. '그대로 저장하기'면 true.
+function confirmHeavyMenus(heavy) {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'dup-overlay';
+    wrap.innerHTML =
+      '<div class="dup-box">'
+      + '<h3>재료가 평소보다 많아요</h3>'
+      + '<p class="dup-sub">재료가 많으면 단계마다 빼야 할 게 늘어서 조리도 손님 설명도 헷갈려요. '
+      + '보통은 재료 ' + MAX_INGREDIENTS + '개까지 넣으셨어요.</p>'
+      + '<div class="dup-list">'
+      + heavy.map(x =>
+          '<div class="heavy-item">'
+          + '<div class="heavy-top"><span class="dup-type t-' + 'x' + '">' + escapeDup(x.day) + '요일 · ' + escapeDup(x.typeName) + '</span>'
+          + (x.tooMany ? '<span class="heavy-flag">재료 ' + x.count + '개</span>' : '')
+          + (x.multiProtein ? '<span class="heavy-flag warn">단백질 ' + x.proteins.length + '개</span>' : '')
+          + '</div>'
+          + '<div class="heavy-ing">' + escapeDup(x.list.join(', ')) + '</div>'
+          + (x.multiProtein
+              ? '<div class="heavy-note">' + escapeDup(x.proteins.join(' · ')) + ' — 단계마다 빠지는 게 달라져요</div>' : '')
+          + '</div>'
+        ).join('')
+      + '</div>'
+      + '<div class="dup-btns">'
+      + '<button type="button" class="dup-fix">수정하기</button>'
+      + '<button type="button" class="dup-go">그대로 저장하기</button>'
+      + '</div></div>';
+    const done = v => { wrap.remove(); resolve(v); };
+    wrap.querySelector('.dup-fix').onclick = () => done(false);
+    wrap.querySelector('.dup-go').onclick = () => done(true);
+    wrap.onclick = e => { if (e.target === wrap) done(false); };
+    document.body.appendChild(wrap);
+    wrap.querySelector('.dup-fix').focus();
+  });
+}
+
 // ===== 저장 전 재료 중복 검사 =====
 // 같은 단백질(한우/닭/기타) 안에서 같은 재료가 여러 날 나오면, 그 메뉴를 계속 시키는 아기는
 // 같은 걸 반복해서 먹게 된다. 메뉴를 짜다 보면 놓치기 쉬워서 저장 직전에 한 번 잡아준다.
@@ -2453,6 +2538,13 @@ async function saveMenu() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
   const weekKey = document.getElementById('weekStart').value;
 
+
+  // 재료 개수·단백질 겹침을 먼저 본다 — 구성 자체가 이상하면 중복보다 이게 먼저다
+  const heavy = findHeavyMenus();
+  if (heavy.length > 0) {
+    const goOn = await confirmHeavyMenus(heavy);
+    if (!goOn) { showToast('메뉴를 고친 뒤 다시 저장해주세요'); return; }
+  }
 
   // 저장 직전에 재료 중복을 알려준다. '수정하기'를 고르면 저장하지 않고 화면에 강조 표시.
   const dups = findTypeDuplicates();
