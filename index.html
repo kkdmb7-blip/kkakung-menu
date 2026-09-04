@@ -236,6 +236,18 @@ html, body { overflow-x: hidden; }
 .heavy-flag.warn { background:#FFE8E0; color:#c2410c; }
 .heavy-ing { font-size:13px; color:#333; line-height:1.5; }
 .heavy-note { font-size:11px; color:#c2410c; margin-top:4px; font-weight:600; }
+/* 성분표 */
+.nut-menu { padding:10px 0; border-bottom:1px solid #f1f1f1; }
+.nut-menu:last-child { border-bottom:none; }
+.nut-head { font-size:13px; font-weight:700; margin-bottom:6px; }
+.nut-vol { font-size:11px; color:#888; margin:6px 0 4px; }
+.nut-rows { display:flex; flex-wrap:wrap; gap:5px; }
+.nut-chip { font-size:12px; background:#F4F8FB; border:1px solid #dbe7f0; border-radius:99px; padding:3px 9px; }
+.nut-chip b { font-weight:700; }
+.nut-total { font-size:12px; font-weight:700; color:#1d6fa5; background:#EAF6FF; border-radius:99px; padding:3px 9px; }
+.nut-unknown { font-size:11px; color:#c2410c; margin-top:6px; font-weight:600; }
+.nut-warn { margin-top:12px; padding:10px 12px; background:#FFF6E5; border:1px solid #f0c86a; border-radius:10px; font-size:12px; color:#7a5300; line-height:1.6; }
+.nut-warn span { opacity:.85; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -277,7 +289,23 @@ html, body { overflow-x: hidden; }
     <button class="btn btn-ghost" onclick="resetToSaved()" style="color:var(--primary)">🔄 서버 새로고침</button>
     <button class="btn btn-ghost" onclick="openPairingCheck()" style="background:#F0EEFF;color:#8B6FE8;border-color:#d4c8f8;">🥕 재료 궁합</button>
     <button class="btn btn-ghost" onclick="openShoppingList()" style="background:#FFF6E5;color:#a06a00;border-color:#f0d69a;">🧺 재료 준비 목록</button>
+    <button class="btn btn-ghost" onclick="openNutrition()" style="background:#EAF6FF;color:#1d6fa5;border-color:#a8d4f0;">⚖️ 성분표</button>
     <button class="btn btn-secondary" onclick="saveMenu()">💾 이번 주 저장</button>
+  </div>
+</div>
+
+<!-- 성분표 -->
+<div class="modal-overlay" id="nutritionModal">
+  <div class="modal">
+    <h3>⚖️ 성분 (재료 중량)</h3>
+    <p style="font-size:12px;color:var(--text-light);margin:-6px 0 12px;line-height:1.55">
+      소고기·닭은 익힌 기준이에요. 육수·채소상탕은 중량 표기에서 빠집니다.
+    </p>
+    <div id="nutritionContent" style="max-height:56vh;overflow-y:auto"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="copyNutrition()" style="flex:1">📋 성분표 복사</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('nutritionModal').classList.remove('active')" style="flex:1">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -2383,6 +2411,131 @@ function midNoteOf(menu) {
   // 사람이 이미 같은 내용을 적어뒀으면 중복해서 붙이지 않는다
   if (manual && banned.every(b => manual.includes(b))) return manual;
   return manual ? auto + ' / ' + manual : auto;
+}
+
+// ===== 성분(재료 중량) 표기 =====
+// 사장님이 준 기준:
+//   소고기 익힌 것 — 작은팩 18g / 큰팩 24g
+//   닭    익힌 것 — 작은팩 20g / 큰팩 30g
+//   잎채소 5g · 그 밖의 야채 20g · 양파 20g  (전부 작은팩 230g 기준)
+//
+// ⚠️ 용량은 230·240(작은팩)과 300·310(큰팩) 네 가지가 있다.
+//    단백질은 작은/큰 두 값을 직접 받았으므로 그대로 쓴다.
+//    채소는 작은팩 값만 받아서, 큰팩은 팩 크기 비율(300/230)로 올려 잡았다. ← 확인 필요
+const SMALL_VOLUMES = [230, 240];
+const BIG_VOLUMES = [300, 310];
+const BIG_SCALE = 300 / 230;   // 채소류 큰팩 환산 비율
+
+// 재료 분류. 여기에 없는 재료는 '미분류'로 표시되고 합계에서 빠진다(잘못된 숫자를 내보내지 않기 위해).
+const INGRED_GRAMS = {
+  // 단백질 — 작은팩/큰팩 값을 직접 지정
+  '한우':        { small: 18, big: 24, group: '소고기' },
+  '닭가슴살':    { small: 20, big: 30, group: '닭' },
+  '닭':          { small: 20, big: 30, group: '닭' },
+};
+// 잎채소 (작은팩 5g)
+const LEAF_VEGGIES = ['근대','적근대','청경채','로메인','케일','아욱','비타민채소','비타민','배추','양배추','적채','호박잎','시금치'];
+// 그 밖의 야채 (작은팩 20g)
+const OTHER_VEGGIES = ['감자','당근','고구마','브로콜리','애호박','쥬키니호박','둥근호박','단호박','밤단호박','땅콩호박',
+                       '콜리플라워','비트','무','노각'];
+// 양파는 따로 명시해주셔서 분리 (지금 값은 야채와 같지만 나중에 바꾸기 쉽게)
+const ONION = ['양파'];
+// 국물·육수류 — 중량 표기 대상이 아님
+const BROTH = ['채소상탕','한우육수','닭육수','채소육수','물','소금'];
+
+LEAF_VEGGIES.forEach(n => INGRED_GRAMS[n] = { small: 5, group: '잎채소' });
+OTHER_VEGGIES.forEach(n => INGRED_GRAMS[n] = { small: 20, group: '야채' });
+ONION.forEach(n => INGRED_GRAMS[n] = { small: 20, group: '양파' });
+
+function isBroth(name) { return BROTH.includes(String(name || '').trim()); }
+
+// 용량에 맞는 중량(g). 모르는 재료면 null.
+function gramsOf(ingredient, volume) {
+  const name = String(ingredient || '').trim();
+  const info = INGRED_GRAMS[name];
+  if (!info) return null;
+  const big = BIG_VOLUMES.includes(Number(volume));
+  if (info.big !== undefined) return big ? info.big : info.small;
+  return big ? Math.round(info.small * BIG_SCALE) : info.small;
+}
+
+// 메뉴 하나의 성분표. { rows:[{name,grams}], unknown:[이름], broth:[이름] }
+function nutritionOf(menu, volume) {
+  const rows = [], unknown = [], broth = [];
+  String(menu && menu.ingredients || '').split(',').forEach(raw => {
+    const name = raw.trim();
+    if (!name) return;
+    if (isBroth(name)) { broth.push(name); return; }
+    const g = gramsOf(name, volume);
+    if (g === null) unknown.push(name);
+    else rows.push({ name, grams: g });
+  });
+  return { rows, unknown, broth, total: rows.reduce((a, r) => a + r.grams, 0) };
+}
+
+// 이번 주 전체에서 아직 중량을 모르는 재료 목록
+function unknownIngredients() {
+  const set = new Set();
+  (currentMenu || []).forEach(day => {
+    if (day.type !== 'yushik' || day.removed) return;
+    (day.menus || []).forEach(m => nutritionOf(m, 230).unknown.forEach(x => set.add(x)));
+  });
+  return [...set];
+}
+
+function openNutrition() {
+  if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
+  const vols = [
+    { label: '작은팩 (230·240g)', v: 230 },
+    { label: '큰팩 (300·310g)', v: 300 },
+  ];
+  let html = '';
+  (currentMenu || []).forEach(day => {
+    if (day.type !== 'yushik' || day.removed) return;
+    (day.menus || []).forEach(m => {
+      const name = m.displayName || m.name || '';
+      html += `<div class="nut-menu"><div class="nut-head">${escapeDup(day.dayName)}요일 · ${escapeDup(typeLabel(m.type))} — ${escapeDup(name)}</div>`;
+      vols.forEach(vv => {
+        const n = nutritionOf(m, vv.v);
+        html += `<div class="nut-vol">${vv.label}</div><div class="nut-rows">`
+          + n.rows.map(r => `<span class="nut-chip"><b>${escapeDup(r.name)}</b> ${r.grams}g</span>`).join('')
+          + (n.rows.length ? `<span class="nut-total">합 ${n.total}g</span>` : '')
+          + '</div>';
+      });
+      const u = nutritionOf(m, 230).unknown;
+      if (u.length) html += `<div class="nut-unknown">중량 미등록: ${escapeDup(u.join(', '))}</div>`;
+      html += '</div>';
+    });
+  });
+  const allUnknown = unknownIngredients();
+  document.getElementById('nutritionContent').innerHTML =
+    (html || '<p style="color:var(--text-light);font-size:13px">이유식 메뉴가 없어요</p>')
+    + (allUnknown.length
+        ? `<div class="nut-warn">아직 중량이 정해지지 않은 재료 ${allUnknown.length}가지<br><b>${escapeDup(allUnknown.join(', '))}</b><br><span>이 재료들은 합계에서 빠져 있어요.</span></div>`
+        : '');
+  document.getElementById('nutritionModal').classList.add('active');
+}
+
+function copyNutrition() {
+  if (!currentMenu) return;
+  const week = document.getElementById('weekStart').value || '';
+  let out = `[까꿍디미방 성분표 ${week}]\n`;
+  (currentMenu || []).forEach(day => {
+    if (day.type !== 'yushik' || day.removed) return;
+    (day.menus || []).forEach(m => {
+      out += `\n${day.dayName}요일 · ${typeLabel(m.type)} — ${m.displayName || m.name}\n`;
+      [[230, '작은팩'], [300, '큰팩']].forEach(([v, lb]) => {
+        const n = nutritionOf(m, v);
+        if (!n.rows.length) return;
+        out += `  ${lb}: ` + n.rows.map(r => `${r.name} ${r.grams}g`).join(', ') + `\n`;
+      });
+      const u = nutritionOf(m, 230).unknown;
+      if (u.length) out += `  (중량 미등록: ${u.join(', ')})\n`;
+    });
+  });
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(out).then(() => showToast('📋 성분표를 복사했어요')).catch(() => showToast('복사 실패'));
+  } else { showToast('이 환경에서는 복사가 안 돼요'); }
 }
 
 // ===== 저장 전 재료 개수 검사 =====
