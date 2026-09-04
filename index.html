@@ -3846,15 +3846,28 @@ function printMenuTable(withNut) {
   // 단백질 103%와 칼슘 7%가 똑같아 보여서, 판정에 따라 색을 나눈다.
   //   칼슘은 원래 분유·모유가 맡는 몫이라 아예 다른 계열(회청색)로 빼서
   //   "부족한 게 아니라 담당이 다른 것"임을 색으로 알린다.
-  // 엄마가 메뉴표에서 가장 먼저 훑는 것. 재료만 나열하면 직접 골라내야 한다.
-  // 중기에서 빠지는 재료(새우)도 여기 같이 알린다 — 앱 화면엔 있었는데 인쇄물엔 빠져 있었다.
-  function allergyLine(m, stage) {
-    const al = allergensOf(m.ingredients);
-    const mid = (stage === '중기') ? midNoteOf(m) : '';
-    if (!al.length && !mid) return '';
-    let h = '<div style="padding:2px 5px;font-size:9px;line-height:1.4;text-align:center;background:#fdf6ef;border-top:1px solid #f0e4d4;color:#a8672c;">';
-    if (al.length) h += '알레르기 ' + al.join('·');
-    if (mid) h += (al.length ? ' &nbsp;|&nbsp; ' : '') + '<b style="color:#c0491a;">중기 ' + mid + '</b>';
+  // 알레르기는 칸마다 넣으면 있는 칸만 높아져서 막대 줄이 어긋난다.
+  // 표 아래 한 곳에 모아서, 같은 메뉴가 세 단계에 걸쳐 몇 번인지로 알려준다.
+  //   (한우는 1·4·7번, 닭은 2·5·8번, 기타단백질은 3·6·9번)
+  function allergyBox(menus) {
+    const al = [], mid = [];
+    (menus || []).forEach((m, mi) => {
+      const nums = [0, 1, 2].map(ri => (NUMS[ri] && NUMS[ri][mi] || '').replace('.', '')).filter(Boolean).join('·');
+      const list = allergensOf(m.ingredients);
+      if (list.length) al.push('<b>' + nums + '번</b> ' + list.join('·'));
+      const note = midNoteOf(m);
+      if (note) mid.push('<b>' + ((NUMS[0] && NUMS[0][mi] || '').replace('.', '')) + '번</b> ' + buildTitle(m) + ' — ' + note);
+    });
+    if (!al.length && !mid.length) return '';
+    let h = '<div style="border:1px solid #f0e0cc;border-radius:6px;background:#fdf8f2;padding:2mm 5mm;margin-top:2mm;font-size:10px;line-height:1.6;color:#8a6234;text-align:center;word-break:keep-all;">';
+    if (al.length) {
+      h += '<span style="font-weight:700;color:#a8672c;">알레르기 유발 재료</span> &nbsp; ' + al.join(' &nbsp;/&nbsp; ');
+    }
+    if (mid.length) {
+      h += (al.length ? '<br>' : '')
+        + '<span style="font-weight:700;color:#c0491a;">중기 제외</span> &nbsp; '
+        + '<span style="color:#c0491a;">' + mid.join(' &nbsp;/&nbsp; ') + '</span>';
+    }
     return h + '</div>';
   }
 
@@ -3911,7 +3924,7 @@ function printMenuTable(withNut) {
       + '</div>';
   }
 
-  const nutBox = '<div style="border:1px solid #e0f0d8;border-radius:8px;background:#f7fcf5;padding:2.8mm 5mm;margin-top:2.5mm;font-size:10px;line-height:1.65;color:#5f6f5a;word-break:keep-all;">'
+  const nutBox = '<div style="border:1px solid #e0f0d8;border-radius:8px;background:#f7fcf5;padding:2.4mm 5mm;margin-top:2mm;font-size:10px;line-height:1.55;color:#5f6f5a;word-break:keep-all;">'
     + '<div style="text-align:center;font-weight:700;color:#7aaa68;letter-spacing:.1em;margin-bottom:2mm;">— 영양성분 안내 —</div>'
     + '<div style="text-align:center;margin-bottom:2.5mm;">'
     +   '막대는 <b>하루 권장 섭취량</b>을 100으로 두고 아기가 하루에 먹는 양이 채우는 정도입니다. '
@@ -4004,8 +4017,8 @@ function printMenuTable(withNut) {
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
           +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false"'+pe()+'>'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
-          +'<div style="padding:4px;font-size:11px;line-height:1.6;color:#333;text-align:center;height:'+(withNut?49:80)+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
-          +(withNut ? allergyLine(m, STAGES_ORDER[ri]) : '')
+          +'<div style="padding:4px;font-size:11px;line-height:1.6;color:#333;text-align:center;height:'+(withNut?52:80)+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+
           +nutBars(m, STAGES_ORDER[ri])
           +'</td>';
       }).join('');
@@ -4032,6 +4045,7 @@ function printMenuTable(withNut) {
       +'<tbody>'+rows+'</tbody>'
       +'</table>'
       +'<div contenteditable="true" spellcheck="false"'+pe()+' style="background:#f7fcf5;border:1px solid #e0f0d8;border-radius:6px;padding:3mm 6mm;font-size:11px;color:#555;text-align:center;margin-top:4mm;word-break:keep-all;">'+ori+'</div>'
+      +(withNut ? allergyBox(menus) : '')
       +(withNut ? nutBox : '')
       +'<div contenteditable="true" spellcheck="false"'+pe()+' style="font-size:13px;font-weight:700;color:#5aae5a;text-align:center;margin-top:3mm;padding-top:3mm;border-top:1px solid #e4f4d8;">☆ 까꿍 디미방은 재료 궁합까지 생각하며 만듭니다 ☆</div>'
       +'</div>';
