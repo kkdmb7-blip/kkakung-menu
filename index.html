@@ -2424,56 +2424,95 @@ function midNoteOf(menu) {
 //    채소는 작은팩 값만 받아서, 큰팩은 팩 크기 비율(300/230)로 올려 잡았다. ← 확인 필요
 const SMALL_VOLUMES = [230, 240];
 const BIG_VOLUMES = [300, 310];
-const BIG_SCALE = 300 / 230;   // 채소류 큰팩 환산 비율
+const BIG_SCALE = 300 / 230;   // 큰팩 환산 비율 (사장님 확인 전 임시)
 
-// 재료 분류. 여기에 없는 재료는 '미분류'로 표시되고 합계에서 빠진다(잘못된 숫자를 내보내지 않기 위해).
-const INGRED_GRAMS = {
-  // 단백질 — 작은팩/큰팩 값을 직접 지정
-  '한우':        { small: 18, big: 24, group: '소고기' },
-  '닭가슴살':    { small: 20, big: 30, group: '닭' },
-  '닭':          { small: 20, big: 30, group: '닭' },
-};
-// 잎채소 (작은팩 5g)
-const LEAF_VEGGIES = ['근대','적근대','청경채','로메인','케일','아욱','비타민채소','비타민','배추','양배추','적채','호박잎','시금치'];
-// 그 밖의 야채 (작은팩 20g)
-const OTHER_VEGGIES = ['감자','당근','고구마','브로콜리','애호박','쥬키니호박','둥근호박','단호박','밤단호박','땅콩호박',
-                       '콜리플라워','비트','무','노각'];
-// 양파는 따로 명시해주셔서 분리 (지금 값은 야채와 같지만 나중에 바꾸기 쉽게)
-const ONION = ['양파'];
-// 국물·육수류 — 중량 표기 대상이 아님
+// ── 재료 분류 ────────────────────────────────────────────────
+// 국물류 — 중량 표기 대상 아님
 const BROTH = ['채소상탕','한우육수','닭육수','채소육수','물','소금'];
+// 단백질 — 작은팩/큰팩 값을 직접 받음 (익힌 기준)
+const PROTEIN_G = {
+  '한우':     { small: 18, big: 24 },
+  '닭가슴살': { small: 20, big: 30 },
+  '닭':       { small: 20, big: 30 },
+  // 생선·해산물은 닭과 같은 값
+  '대구살':   { small: 20, big: 30 },
+  '연어':     { small: 20, big: 30 },
+  '가자미':   { small: 20, big: 30 },
+  '새우':     { small: 20, big: 30 },
+};
+// 잎채소 — 7g 고정. 아래 배분 계산에 끼지 않는다.
+const LEAF_VEGGIES = ['근대','적근대','청경채','로메인','케일','아욱','비타민채소','비타민','배추','호박잎','시금치','매생이'];
+const LEAF_G = 7;
+// 양파 — 매 메뉴에 들어가는 고정 재료
+const ONION = ['양파'];
+const ONION_G = 20;
+// 해조류 — 사장님이 맡기셔서 3g으로 잡음(잎채소보다 적게 쓰므로)
+const SEAWEED = ['미역','파래김'];
+const SEAWEED_G = 3;
 
-LEAF_VEGGIES.forEach(n => INGRED_GRAMS[n] = { small: 5, group: '잎채소' });
-OTHER_VEGGIES.forEach(n => INGRED_GRAMS[n] = { small: 20, group: '야채' });
-ONION.forEach(n => INGRED_GRAMS[n] = { small: 20, group: '양파' });
+// ── 배분 대상 ────────────────────────────────────────────────
+// ⚠️ 재료 중량은 고정값이 아니라 "같이 들어간 재료"에 따라 달라진다.
+//    감자+느타리 → 20/10,  감자+애호박 → 15/15,  느타리+사과 → 15/15
+//    무거운 것(뿌리·열매채소)이 가벼운 것(버섯·과일·곡물)보다 2배를 가져간다.
+const VEGGIE_POOL = 30;   // 2가지 이상일 때 나눠 갖는 총량
+const VEGGIE_SOLO = 20;   // 1가지만 들어갔을 때
+const HEAVY_ITEMS = ['감자','고구마','단호박','밤단호박','땅콩호박','애호박','쥬키니호박','둥근호박',
+                     '당근','무','비트','브로콜리','콜리플라워','노각','양배추','적채'];
+const LIGHT_ITEMS = ['팽이버섯','팽이','느타리버섯','느타리','새송이버섯','새송이','양송이','송고버섯','만가닥버섯',
+                     '사과','배','아보카도',
+                     '연두부','두부','렌틸콩','병아리콩',
+                     '퀴노아','파로','차조','오트밀','햄프시드'];
+
+// ── 장 단위로 세는 재료 ──────────────────────────────────────
+// 치즈는 무게가 아니라 "몇 팩당 한 장". 단계마다 다르고 팩 크기와는 무관.
+const SLICE_ITEMS = {
+  '아기치즈': { 중기: 4, 후기: 3, 완료기: 2 },
+};
+function sliceInfoOf(name) { return SLICE_ITEMS[String(name || '').trim()] || null; }
+function sliceText(info) {
+  const frac = { 2: '½', 3: '⅓', 4: '¼' };
+  return Object.keys(info).map(st => `${st} ${frac[info[st]] || ('1/' + info[st])}장`).join(' · ');
+}
 
 function isBroth(name) { return BROTH.includes(String(name || '').trim()); }
+function isBig(volume) { return BIG_VOLUMES.includes(Number(volume)); }
+function scale(g, volume) { return isBig(volume) ? Math.round(g * BIG_SCALE) : g; }
 
-// 용량에 맞는 중량(g). 모르는 재료면 null.
-function gramsOf(ingredient, volume) {
-  const name = String(ingredient || '').trim();
-  const info = INGRED_GRAMS[name];
-  if (!info) return null;
-  const big = BIG_VOLUMES.includes(Number(volume));
-  if (info.big !== undefined) return big ? info.big : info.small;
-  return big ? Math.round(info.small * BIG_SCALE) : info.small;
-}
-
-// 메뉴 하나의 성분표. { rows:[{name,grams}], unknown:[이름], broth:[이름] }
+// 메뉴 하나의 성분표
 function nutritionOf(menu, volume) {
-  const rows = [], unknown = [], broth = [];
-  String(menu && menu.ingredients || '').split(',').forEach(raw => {
-    const name = raw.trim();
-    if (!name) return;
+  const names = String(menu && menu.ingredients || '').split(',').map(x => x.trim()).filter(Boolean);
+  const rows = [], unknown = [], broth = [], slices = [];
+  const pool = [];   // 배분 대상
+
+  names.forEach(name => {
     if (isBroth(name)) { broth.push(name); return; }
-    const g = gramsOf(name, volume);
-    if (g === null) unknown.push(name);
-    else rows.push({ name, grams: g });
+    const sl = sliceInfoOf(name);
+    if (sl) { slices.push({ name, text: sliceText(sl) }); return; }
+    if (PROTEIN_G[name]) {
+      rows.push({ name, grams: isBig(volume) ? PROTEIN_G[name].big : PROTEIN_G[name].small });
+      return;
+    }
+    if (ONION.includes(name))        { rows.push({ name, grams: scale(ONION_G, volume) }); return; }
+    if (LEAF_VEGGIES.includes(name)) { rows.push({ name, grams: scale(LEAF_G, volume) }); return; }
+    if (SEAWEED.includes(name))      { rows.push({ name, grams: scale(SEAWEED_G, volume) }); return; }
+    if (HEAVY_ITEMS.includes(name))  { pool.push({ name, w: 2 }); return; }
+    if (LIGHT_ITEMS.includes(name))  { pool.push({ name, w: 1 }); return; }
+    unknown.push(name);
   });
-  return { rows, unknown, broth, total: rows.reduce((a, r) => a + r.grams, 0) };
+
+  // 배분: 1가지면 20g, 2가지 이상이면 30g을 가중치로 나눔
+  if (pool.length === 1) {
+    rows.push({ name: pool[0].name, grams: scale(VEGGIE_SOLO, volume) });
+  } else if (pool.length > 1) {
+    const sum = pool.reduce((a, x) => a + x.w, 0);
+    pool.forEach(x => rows.push({ name: x.name, grams: scale(Math.round(VEGGIE_POOL * x.w / sum), volume) }));
+  }
+
+  // 원래 적으신 순서대로 보여준다
+  rows.sort((a, b) => names.indexOf(a.name) - names.indexOf(b.name));
+  return { rows, unknown, broth, slices, total: rows.reduce((a, r) => a + r.grams, 0) };
 }
 
-// 이번 주 전체에서 아직 중량을 모르는 재료 목록
 function unknownIngredients() {
   const set = new Set();
   (currentMenu || []).forEach(day => {
