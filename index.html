@@ -268,6 +268,8 @@ html, body { overflow-x: hidden; }
   .nf-table { font-size:10px; }
   .nf-table th, .nf-table td { padding:4px 2px; }
 }
+.nf-pct { display:block; font-size:9px; color:#aaa; font-weight:400; margin-top:1px; }
+.nf-pct.hi { color:#d9822b; font-weight:700; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -2721,6 +2723,16 @@ const NUTRIENT_PER_100G = {
 const RICE_BY_STAGE = { 중기: 57, 후기: 58, 완료기: 75 };
 const STAGES_ORDER = ['중기', '후기', '완료기'];
 
+// 1일 영양소 섭취기준 (보건복지부·한국영양학회 2020 한국인 영양소 섭취기준)
+//  중기·후기 → 영아 6-11개월 / 완료기 → 유아 1-2세
+//  값 종류: RNI 권장섭취량, AI 충분섭취량. 순서는 NUTRIENT_LABELS와 같다.
+const DRI_BY_STAGE = {
+  중기:   [600,  90, 15, 25, 300, 6, 370],
+  후기:   [600,  90, 15, 25, 300, 6, 370],
+  완료기: [900, 130, 20, 25, 500, 6, 810],
+};
+const DRI_AGE_LABEL = { 중기: '영아 6-11개월', 후기: '영아 6-11개월', 완료기: '유아 1-2세' };
+
 const NUTRIENT_LABELS = ['열량', '탄수화물', '단백질', '지방', '칼슘', '철', '나트륨'];
 const NUTRIENT_UNITS  = ['kcal', 'g', 'g', 'g', 'mg', 'mg', 'mg'];
 
@@ -2760,11 +2772,11 @@ function nutritionFacts(menu, stage, volume) {
   });
 
   const { sum, missing } = sumNutrients(items);
-  return {
-    items,
-    values: sum.map((v, i) => i === 0 ? Math.round(v) : Math.round(v * 10) / 10),
-    missing,
-  };
+  const values = sum.map((v, i) => i === 0 ? Math.round(v) : Math.round(v * 10) / 10);
+  const dri = DRI_BY_STAGE[stage];
+  // 한 팩은 하루치가 아니라 한 끼라서, 보통 20~35% 정도가 나온다
+  const pct = dri ? sum.map((v, i) => Math.round(v / dri[i] * 100)) : null;
+  return { items, values, pct, missing };
 }
 
 function openNutritionFacts() {
@@ -2780,7 +2792,9 @@ function openNutritionFacts() {
         [['작은팩', 230], ['큰팩', 300]].forEach(([lb, v]) => {
           const f = nutritionFacts(m, stage, v);
           html += `<tr><td class="nf-row-h">${stage}<span>${lb}</span></td>`
-            + f.values.map(x => `<td>${x}</td>`).join('') + '</tr>';
+            + f.values.map((x, i) => `<td>${x}`
+                + (f.pct ? `<span class="nf-pct${f.pct[i] >= 50 ? ' hi' : ''}">${f.pct[i]}%</span>` : '')
+                + '</td>').join('') + '</tr>';
         });
       });
       html += '</table></div>';
@@ -2794,13 +2808,19 @@ function openNutritionFacts() {
     + '<div class="nut-warn">이 수치는 <b>참고용</b>이에요. 포장에 붙이는 영양성분 표시로 쓰시려면 '
     + '식약처 식품영양성분DB 값으로 맞추거나 시험성적서를 받으셔야 해요.<br>'
     + '<span>밥은 중기 57g · 후기 58g · 완료기 75g(작은팩 기준, 큰팩 1.5배)으로 계산했어요. '
-    + '육수는 빠져 있어서 실제 나트륨은 이보다 높을 수 있어요.</span></div>';
+    + '육수는 빠져 있어서 실제 나트륨은 이보다 높을 수 있어요.<br>'
+    + '작은 회색 숫자는 <b>1일 섭취기준 대비 비율</b>이에요. '
+    + '중기·후기는 영아 6-11개월, 완료기는 유아 1-2세 기준(2020 한국인 영양소 섭취기준)이고, '
+    + '<b>한 팩은 하루치가 아니라 한 끼</b>라서 보통 20~35%면 적당해요. '
+    + '50%가 넘으면 주황색으로 표시돼요.</span></div>';
   document.getElementById('nutritionFactsModal').classList.add('active');
 }
 
 function copyNutritionFacts() {
   if (!currentMenu) return;
-  let out = `[까꿍디미방 영양성분(참고용) ${document.getElementById('weekStart').value || ''}]\n`;
+  let out = `[까꿍디미방 영양성분(참고용) ${document.getElementById('weekStart').value || ''}]\n`
+    + `괄호 안 %는 1일 섭취기준 대비 (중기·후기=영아 6-11개월, 완료기=유아 1-2세 / 2020 한국인 영양소 섭취기준)\n`
+    + `한 팩은 한 끼 분량이라 20~35% 정도가 보통이에요.\n`;
   (currentMenu || []).forEach(day => {
     if (day.type !== 'yushik' || day.removed) return;
     (day.menus || []).forEach(m => {
@@ -2808,7 +2828,8 @@ function copyNutritionFacts() {
       STAGES_ORDER.forEach(stage => {
         [['작은팩', 230], ['큰팩', 300]].forEach(([lb, v]) => {
           const f = nutritionFacts(m, stage, v);
-          out += `  ${stage} ${lb}: ` + f.values.map((x, i) => `${NUTRIENT_LABELS[i]} ${x}${NUTRIENT_UNITS[i]}`).join(', ') + `\n`;
+          out += `  ${stage} ${lb}: `
+            + f.values.map((x, i) => `${NUTRIENT_LABELS[i]} ${x}${NUTRIENT_UNITS[i]}` + (f.pct ? `(${f.pct[i]}%)` : '')).join(', ') + `\n`;
         });
       });
     });
