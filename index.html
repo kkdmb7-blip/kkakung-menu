@@ -2808,7 +2808,7 @@ function customerNote(menu) {
       d: `하루 필요한 열량의 ${kLo}~${kHi}% 정도예요. 이유식 한 팩은 하루치가 아니라 한 끼라서 이 정도가 보통이에요.` });
   } else {
     notes.push({ t: '한 끼치고는 든든한 편이에요',
-      d: `하루 필요한 열량의 ${kLo}~${kHi}%예요. 잘 드시는 아기에게 알맞아요.` });
+      d: `하루 필요한 열량의 ${kLo}~${kHi}%예요. 잘 먹는 아기에게 알맞아요.` });
   }
 
   // 단백질 — 높게 나와도 놀라지 않으시게
@@ -3787,7 +3787,7 @@ function printMenuTable(withNut) {
   //   중기 = 반으로 나눠 하루 2회 (하루 1팩)
   //   후기·완료기 = 하루 3회 (하루 1.5팩)
   // 그래서 "한 팩" 기준으로 %를 내면 하루 섭취량보다 적게 나온다. 하루 기준으로 계산한다.
-  // 실제로 아이가 하루에 먹는 양. 사장님이 손님들 드시는 양을 보고 알려주신 값.
+  // 실제로 아기가 하루에 먹는 양. 사장님이 손님 아기들 먹는 양을 보고 알려주신 값.
   //   중기   1회 100~120g x 하루 3회 = 약 330g
   //   후기   1회 150~180g x 하루 3회 = 약 495g
   //   완료기 1회 180~200g x 하루 3끼 = 약 570g
@@ -3844,16 +3844,16 @@ function printMenuTable(withNut) {
   const nutBox = '<div style="border:1px solid #e0f0d8;border-radius:8px;background:#f7fcf5;padding:3.5mm 6mm;margin-top:3.5mm;font-size:10.5px;line-height:1.8;color:#5f6f5a;word-break:keep-all;">'
     + '<div style="text-align:center;font-weight:700;color:#7aaa68;letter-spacing:.1em;margin-bottom:2mm;">— 영양성분 안내 —</div>'
     + '<div style="text-align:center;margin-bottom:2.5mm;">'
-    +   '막대는 <b>하루 권장 섭취량</b>을 100으로 두고 하루에 드시는 양이 채우는 정도입니다. '
+    +   '막대는 <b>하루 권장 섭취량</b>을 100으로 두고 아기가 하루에 먹는 양이 채우는 정도입니다. '
     +   '이유식은 하루 영양의 전부가 아니라 <b>분유·모유와 나눠 맡는</b> 것이라, 막대가 끝까지 차지 않는 것이 정상입니다.<br>'
     +   '세계보건기구(WHO)가 권하는 이유식 열량은 <b>중기 200 · 후기 300 · 완료기 550kcal</b>인데, '
-    +   '까꿍 디미방 이유식은 하루 드시는 양 기준 <b>중기 약 220 · 후기 약 330kcal</b>로 그 기준을 채웁니다.'
+    +   '까꿍 디미방 이유식은 하루 먹는 양 기준 <b>중기 약 220 · 후기 약 330kcal</b>로 그 기준을 채웁니다.'
     + '</div>'
     + '<div style="display:flex;gap:4mm;">'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
     +     '<b style="color:#4a7c3f;">고기 함량을 아끼지 않았습니다</b><br>'
     +     '작은 팩 하나에 <b>익힌 한우 18g</b>, 닭가슴살과 생선은 <b>20g</b>을 그대로 담습니다. '
-    +     '그래서 하루 드시는 양이면 <b>단백질 권장량을 거의 다</b> 채웁니다. '
+    +     '그래서 아기가 하루에 먹는 양이면 <b>단백질 권장량을 거의 다</b> 채웁니다. '
     +     '근육과 키가 가장 빠르게 자라는 시기라, 단백질만큼은 넉넉해야 한다고 믿습니다.'
     +   '</div>'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
