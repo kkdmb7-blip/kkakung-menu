@@ -270,6 +270,12 @@ html, body { overflow-x: hidden; }
 }
 .nf-pct { display:block; font-size:9px; color:#aaa; font-weight:400; margin-top:1px; }
 .nf-pct.hi { color:#d9822b; font-weight:700; }
+.nf-note { margin-top:10px; background:#F6FBF4; border:1px solid #dbead4; border-radius:10px; padding:10px 12px; }
+.nf-note-h { font-size:11px; font-weight:700; color:#4a7c3f; margin-bottom:7px; }
+.nf-note-i { font-size:12px; line-height:1.55; margin-bottom:6px; }
+.nf-note-i:last-child { margin-bottom:0; }
+.nf-note-i b { display:block; color:#2f5d27; }
+.nf-note-i span { color:#5a6b55; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -2779,6 +2785,59 @@ function nutritionFacts(menu, stage, volume) {
   return { items, values, pct, missing };
 }
 
+// 숫자만 보면 "단백질 85%? 너무 많은 거 아냐" "칼슘 3%면 부족한 거 아냐" 하고
+// 놀라시는 손님이 있어서, 계산값을 보고 쉬운 말로 풀어 준다.
+// 고정 문구가 아니라 실제 수치에 따라 달라진다.
+function customerNote(menu) {
+  const combos = [];
+  STAGES_ORDER.forEach(st => [230, 300].forEach(v => {
+    const f = nutritionFacts(menu, st, v);
+    if (f.pct) combos.push({ stage: st, pct: f.pct, val: f.values });
+  }));
+  if (!combos.length) return [];
+
+  const at = i => combos.map(c => c.pct[i]);
+  const lo = i => Math.min(...at(i)), hi = i => Math.max(...at(i));
+  const notes = [];
+
+  // 열량 — 한 끼로 적당한지
+  const kLo = lo(0), kHi = hi(0);
+  if (kHi <= 45) {
+    notes.push({ t: '한 끼 분량으로 알맞아요',
+      d: `하루 필요한 열량의 ${kLo}~${kHi}% 정도예요. 이유식 한 팩은 하루치가 아니라 한 끼라서 이 정도가 보통이에요.` });
+  } else {
+    notes.push({ t: '한 끼치고는 든든한 편이에요',
+      d: `하루 필요한 열량의 ${kLo}~${kHi}%예요. 잘 드시는 아기에게 알맞아요.` });
+  }
+
+  // 단백질 — 높게 나와도 놀라지 않으시게
+  const pHi = hi(2);
+  if (pHi >= 50) {
+    notes.push({ t: '단백질이 넉넉해요',
+      d: `한 팩에 하루 권장량의 ${lo(2)}~${pHi}%가 들어 있어요. 아기 단백질 권장량이 원래 작아서(하루 15~20g) 단백질 재료가 조금만 들어가도 비율이 높게 나와요. 성장기에 필요한 영양이라 걱정하지 않으셔도 돼요.` });
+  } else if (pHi >= 25) {
+    notes.push({ t: '단백질이 알맞게 들어 있어요', d: `한 팩에 하루 권장량의 ${lo(2)}~${pHi}%예요.` });
+  }
+
+  // 칼슘 — 낮게 나오는 이유를 먼저 설명
+  const cHi = hi(4);
+  const hasCal = /아기치즈|두부|연두부|미역|파래김|매생이|케일|아욱|청경채/.test(String(menu && menu.ingredients || ''));
+  if (cHi < 12) {
+    notes.push({ t: '칼슘이 낮아 보여도 괜찮아요',
+      d: `하루 필요량의 ${lo(4)}~${cHi}%로 나오는데, 이 시기 칼슘은 대부분 분유나 모유에서 채워요. 죽으로 칼슘을 다 채우는 게 아니라서 정상이에요.`
+        + (hasCal ? '' : ' 젖을 줄이는 완료기에는 치즈나 두부가 들어간 메뉴를 곁들이면 좋아요.') });
+  } else if (hasCal) {
+    notes.push({ t: '칼슘을 챙긴 메뉴예요', d: `하루 필요량의 ${lo(4)}~${cHi}%가 들어 있어요.` });
+  }
+
+  // 철 — 이 시기 가장 부족하기 쉬운 영양소
+  const fHi = hi(5);
+  if (fHi >= 12) notes.push({ t: '철분이 들어 있어요',
+    d: `하루 권장량의 ${lo(5)}~${fHi}%예요. 생후 6개월부터는 철분이 부족해지기 쉬워서 이유식으로 챙기는 게 좋아요.` });
+
+  return notes;
+}
+
 function openNutritionFacts() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
   let html = '';
@@ -2798,6 +2857,12 @@ function openNutritionFacts() {
         });
       });
       html += '</table></div>';
+      const notes = customerNote(m);
+      if (notes.length) {
+        html += '<div class="nf-note"><div class="nf-note-h">손님께 이렇게 설명하시면 돼요</div>'
+          + notes.map(n => `<div class="nf-note-i"><b>${escapeDup(n.t)}</b><span>${escapeDup(n.d)}</span></div>`).join('')
+          + '</div>';
+      }
       const miss = nutritionFacts(m, '중기', 230).missing;
       if (miss.length) html += `<div class="nut-unknown">영양가 미등록: ${escapeDup([...new Set(miss)].join(', '))}</div>`;
       html += '</div>';
@@ -2832,6 +2897,7 @@ function copyNutritionFacts() {
             + f.values.map((x, i) => `${NUTRIENT_LABELS[i]} ${x}${NUTRIENT_UNITS[i]}` + (f.pct ? `(${f.pct[i]}%)` : '')).join(', ') + `\n`;
         });
       });
+      customerNote(m).forEach(n => { out += `  · ${n.t} — ${n.d}\n`; });
     });
   });
   if (navigator.clipboard) navigator.clipboard.writeText(out).then(() => showToast('📋 복사했어요')).catch(() => showToast('복사 실패'));
