@@ -147,7 +147,7 @@ header {
 .menu-container-hidden { display: none !important; }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 -4px 20px rgba(0,0,0,0.06); }
 .bottom-bar-info { font-size: 13px; color: var(--text-light); }
-.bottom-bar-actions { display: flex; gap: 10px; }
+.bottom-bar-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .toast { position: fixed; top: 80px; right: 24px; background: #2D2D2D; color: white; padding: 12px 20px; border-radius: 12px; font-size: 14px; z-index: 300; transform: translateX(120%); transition: transform 0.3s; display: flex; align-items: center; gap: 8px; }
 .toast.show { transform: translateX(0); }
 .section-title { font-size: 13px; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: 1px; padding: 10px 18px 6px; border-bottom: 1px solid var(--border); }
@@ -178,8 +178,9 @@ html, body { overflow-x: hidden; }
 
   .bottom-bar { padding: 6px 10px; flex-wrap: nowrap; gap: 4px; }
   .bottom-bar-info { display: none; }
-  .bottom-bar-actions { display: flex; gap: 4px; width: 100%; }
-  .bottom-bar-actions .btn { flex: 1; padding: 7px 2px; font-size: 10px; text-align: center; white-space: nowrap; min-width: 0; }
+  /* 버튼이 6개가 되면서 한 줄에 안 들어가 오른쪽이 잘렸음 — 두 줄로 흐르게 */
+  .bottom-bar-actions { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
+  .bottom-bar-actions .btn { flex: 1 1 30%; padding: 7px 2px; font-size: 10px; text-align: center; white-space: nowrap; min-width: 0; }
 
   .history-panel { padding: 12px 10px; margin-bottom: 16px; }
   .days-grid { grid-template-columns: 1fr; gap: 12px; }
