@@ -2733,6 +2733,32 @@ const STAGES_ORDER = ['중기', '후기', '완료기'];
 // 1일 영양소 섭취기준 (보건복지부·한국영양학회 2020 한국인 영양소 섭취기준)
 //  중기·후기 → 영아 6-11개월 / 완료기 → 유아 1-2세
 //  값 종류: RNI 권장섭취량, AI 충분섭취량. 순서는 NUTRIENT_LABELS와 같다.
+// 식약처 알레르기 유발물질 표시대상 22종 중 우리가 쓰는 재료만.
+// 오트밀(귀리)은 밀이 아니라서 뺐고, 파로는 밀의 한 종류라 넣었다.
+const ALLERGEN_OF = {
+  '아기치즈': '우유', '모짜렐라치즈': '우유',
+  '계란노른자': '알류', '달걀노른자': '알류',
+  '두부': '대두', '연두부': '대두',
+  '파로': '밀',
+  '새우': '새우',
+  '대구살': '생선', '연어': '생선', '가자미': '생선', '황태': '생선', '고등어': '고등어',
+  '한우': '쇠고기', '소고기': '쇠고기', '한우육수': '쇠고기',
+  '닭가슴살': '닭고기', '닭육수': '닭고기',
+  '한돈': '돼지고기', '돼지고기': '돼지고기',
+  '캐슈넛': '견과류', '호두': '호두', '땅콩': '땅콩', '잣': '잣',
+  '토마토': '토마토', '복숭아': '복숭아', '메밀': '메밀',
+  '굴': '조개류', '전복': '조개류', '홍합': '조개류', '오징어': '오징어', '게': '게',
+};
+function allergensOf(ingredients) {
+  const out = [];
+  String(ingredients || '').split(',').forEach(raw => {
+    const n = raw.trim();
+    const a = ALLERGEN_OF[n];
+    if (a && !out.includes(a)) out.push(a);
+  });
+  return out;
+}
+
 const DRI_BY_STAGE = {
   중기:   [600,  90, 15, 25, 300, 6, 370],
   후기:   [600,  90, 15, 25, 300, 6, 370],
@@ -2757,6 +2783,17 @@ function sumNutrients(items) {
 
 // 메뉴 하나를 단계·용량 기준으로 계산
 function nutritionFacts(menu, stage, volume) {
+  // 중기에서 빠지는 재료(새우)는 영양 계산에서도 빼야 한다.
+  // 안 그러면 "중기 새우 제외"라고 적어놓고 새우 영양은 더해진 값이 나간다.
+  if (stage === '중기' && menu) {
+    const banned = bannedForMidStage(menu.ingredients);
+    if (banned.length) {
+      menu = Object.assign({}, menu, {
+        ingredients: String(menu.ingredients || '').split(',').map(x => x.trim())
+          .filter(x => x && !banned.some(bb => x === bb || x.includes(bb))).join(', ')
+      });
+    }
+  }
   const n = nutritionOf(menu, volume);
   const items = n.rows.slice();
 
@@ -3801,13 +3838,41 @@ function printMenuTable(withNut) {
     완료기: { once: '180~200g', times: 3, grams: 570, label: '하루 3끼 · 약 570g' },
   };
 
-  // 엄마들이 궁금해하는 순서: 열량 → 단백질 → 철분 → 칼슘
+  // 항목마다 "이 정도면 괜찮은지"의 기준이 다르다. 같은 초록으로 칠하면
+  // 단백질 103%와 칼슘 7%가 똑같아 보여서, 판정에 따라 색을 나눈다.
+  //   칼슘은 원래 분유·모유가 맡는 몫이라 아예 다른 계열(회청색)로 빼서
+  //   "부족한 게 아니라 담당이 다른 것"임을 색으로 알린다.
+  // 엄마가 메뉴표에서 가장 먼저 훑는 것. 재료만 나열하면 직접 골라내야 한다.
+  // 중기에서 빠지는 재료(새우)도 여기 같이 알린다 — 앱 화면엔 있었는데 인쇄물엔 빠져 있었다.
+  function allergyLine(m, stage) {
+    const al = allergensOf(m.ingredients);
+    const mid = (stage === '중기') ? midNoteOf(m) : '';
+    if (!al.length && !mid) return '';
+    let h = '<div style="padding:2px 5px;font-size:9px;line-height:1.4;text-align:center;background:#fdf6ef;border-top:1px solid #f0e4d4;color:#a8672c;">';
+    if (al.length) h += '알레르기 ' + al.join('·');
+    if (mid) h += (al.length ? ' &nbsp;|&nbsp; ' : '') + '<b style="color:#c0491a;">중기 ' + mid + '</b>';
+    return h + '</div>';
+  }
+
+  const WHO_KCAL = { 중기: 200, 후기: 300, 완료기: 550 };
   const BAR_ROWS = [
-    { i: 0, name: '열량',   unit: 'kcal', dec: 0 },
-    { i: 2, name: '단백질', unit: 'g',    dec: 1 },
-    { i: 5, name: '철분',   unit: 'mg',   dec: 1 },
-    { i: 4, name: '칼슘',   unit: 'mg',   dec: 0 },
+    { i: 0, name: '열량',   key: 'kcal' },
+    { i: 2, name: '단백질', key: 'protein' },
+    { i: 5, name: '철분',   key: 'iron' },
+    { i: 4, name: '칼슘',   key: 'calcium' },
   ];
+  // 반환: [등급, 짧은말] — 등급 2=넉넉 1=충분 0=보통 -1=담당아님
+  function gradeOf(key, pct, kcal, stage) {
+    if (key === 'kcal') {
+      const t = WHO_KCAL[stage] || 0;
+      const r = t ? kcal / t * 100 : 0;
+      return r >= 90 ? [2, '충분'] : r >= 70 ? [1, '적당'] : [0, ''];
+    }
+    if (key === 'protein') return pct >= 80 ? [2, '넉넉'] : pct >= 50 ? [1, '충분'] : [0, ''];
+    if (key === 'iron')    return pct >= 30 ? [2, '충분'] : pct >= 20 ? [1, '보통'] : [0, ''];
+    return [-1, '분유·모유 몫'];
+  }
+  const GRADE_COLOR = { '2': '#4f9636', '1': '#7fb069', '0': '#a8c79a', '-1': '#a9b7c6' };
 
   function nutBars(m, stage) {
     if (!withNut) return '';
@@ -3815,33 +3880,34 @@ function printMenuTable(withNut) {
     try { f = nutritionFacts(m, stage, 230); } catch (e) { return ''; }
     if (!f || !f.values || !f.pct || !f.values[0]) return '';
     const sv = DAILY_SERVING[stage] || { grams: BASE_PACK_G, label: '' };
-    const mul = sv.grams / BASE_PACK_G;   // 하루 섭취량 ÷ 한 팩
+    const mul = sv.grams / BASE_PACK_G;
+    const kcal = f.values[0] * mul;
 
+    const good = [];
     const rows = BAR_ROWS.map(r => {
-      const val = f.values[r.i] * mul;
       const pct = Math.round(f.pct[r.i] * mul);
-      const w = Math.max(2, Math.min(100, pct));
-      const shown = r.dec ? Math.round(val * 10) / 10 : Math.round(val);
-      return '<div style="display:flex;align-items:center;gap:3px;line-height:1.1;margin-bottom:2.5px;">'
-        + '<span style="width:27px;color:#6f8069;flex-shrink:0;">' + r.name + '</span>'
-        // 남은 칸을 회색으로 비워두면 "부족하다"로 읽혀서, 분유·모유가 채우는 몫으로 색을 넣는다
-        + '<span style="flex:1;height:6px;background:#edf0ea;border-radius:3px;overflow:hidden;display:block;">'
-        +   '<span style="display:block;height:6px;width:' + w + '%;background:#7fb069;border-radius:3px;"></span>'
+      const g = gradeOf(r.key, pct, kcal, stage);
+      if (g[0] >= 1 && r.key !== 'kcal') good.push(r.name + ' ' + g[1]);
+      const w = Math.max(3, Math.min(100, pct));
+      return '<div style="display:flex;align-items:center;gap:4px;line-height:1.15;margin-bottom:3px;">'
+        + '<span style="width:34px;color:#6f8069;flex-shrink:0;">' + r.name + '</span>'
+        + '<span style="flex:1;height:7px;background:#edf0ea;border-radius:4px;overflow:hidden;display:block;">'
+        +   '<span style="display:block;height:7px;width:' + w + '%;background:' + GRADE_COLOR[String(g[0])] + ';border-radius:4px;"></span>'
         + '</span>'
         + '<span style="width:30px;text-align:right;color:#4a7c3f;font-weight:700;flex-shrink:0;">' + pct + '%</span>'
-        + '<span style="width:40px;text-align:right;color:#8a9a85;flex-shrink:0;">' + shown + r.unit + '</span>'
         + '</div>';
     }).join('');
 
-    return '<div style="border-top:1px dashed #d0d0d0;background:#fbfdfa;padding:4px 6px;font-size:8px;">'
-      + '<div style="text-align:center;color:#7aaa68;font-weight:700;margin-bottom:3px;letter-spacing:-.2px;">'
-      +   '하루 권장량 대비 &nbsp;·&nbsp; ' + sv.label
-      + '</div>'
+    // 막대를 다 읽지 않아도 되게 한 줄로 결론을 준다
+    const verdict = good.length ? good.join(' · ') : '균형 잡힌 구성';
+
+    return '<div style="border-top:1px dashed #d0d0d0;background:#fbfdfa;padding:5px 6px;font-size:10px;">'
+      + '<div style="text-align:center;font-weight:700;color:#3f7a33;margin-bottom:4px;font-size:10.5px;">' + verdict + '</div>'
       + rows
       + '</div>';
   }
 
-  const nutBox = '<div style="border:1px solid #e0f0d8;border-radius:8px;background:#f7fcf5;padding:3.5mm 6mm;margin-top:3.5mm;font-size:10.5px;line-height:1.8;color:#5f6f5a;word-break:keep-all;">'
+  const nutBox = '<div style="border:1px solid #e0f0d8;border-radius:8px;background:#f7fcf5;padding:2.8mm 5mm;margin-top:2.5mm;font-size:10px;line-height:1.65;color:#5f6f5a;word-break:keep-all;">'
     + '<div style="text-align:center;font-weight:700;color:#7aaa68;letter-spacing:.1em;margin-bottom:2mm;">— 영양성분 안내 —</div>'
     + '<div style="text-align:center;margin-bottom:2.5mm;">'
     +   '막대는 <b>하루 권장 섭취량</b>을 100으로 두고 아기가 하루에 먹는 양이 채우는 정도입니다. '
@@ -3850,19 +3916,19 @@ function printMenuTable(withNut) {
     +   '까꿍 디미방 이유식은 하루 먹는 양 기준 <b>중기 약 220 · 후기 약 330kcal</b>로 그 기준을 채웁니다.'
     + '</div>'
     + '<div style="display:flex;gap:4mm;">'
-    +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
+    +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.2mm 2.5mm;">'
     +     '<b style="color:#4a7c3f;">고기 함량을 아끼지 않았습니다</b><br>'
     +     '작은 팩 하나에 <b>익힌 한우 18g</b>, 닭가슴살과 생선은 <b>20g</b>을 그대로 담습니다. '
     +     '그래서 아기가 하루에 먹는 양이면 <b>단백질 권장량을 거의 다</b> 채웁니다. '
     +     '근육과 키가 가장 빠르게 자라는 시기라, 단백질만큼은 넉넉해야 한다고 믿습니다.'
     +   '</div>'
-    +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
+    +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.2mm 2.5mm;">'
     +     '<b style="color:#4a7c3f;">철분, 가장 신경 쓰는 영양소입니다</b><br>'
     +     '생후 6개월이면 엄마에게 받아 둔 철분이 거의 바닥납니다. '
     +     '그래서 <b>흡수율 높은 붉은 고기와 생선</b>을 매 끼니 빠뜨리지 않습니다. '
     +     '다만 하루 필요량을 죽만으로 다 채우기는 어렵습니다. 철분 강화 시리얼이나 영양제를 함께 챙겨주세요.'
     +   '</div>'
-    +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
+    +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.2mm 2.5mm;">'
     +     '<b style="color:#4a7c3f;">칼슘은 분유·모유와 함께</b><br>'
     +     '이 시기 칼슘은 대부분 분유·모유에서 채워집니다. 죽에서 낮게 보이는 것이 정상이며, '
     +     '완료기에는 <b>아기치즈·두부</b>를 넣어 따로 챙깁니다.'
@@ -3933,7 +3999,8 @@ function printMenuTable(withNut) {
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
           +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false"'+pe()+'>'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
-          +'<div style="padding:4px;font-size:11px;line-height:1.65;color:#333;text-align:center;height:'+(withNut?70:80)+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+          +'<div style="padding:4px;font-size:11px;line-height:1.6;color:#333;text-align:center;height:'+(withNut?52:80)+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+          +(withNut ? allergyLine(m, STAGES_ORDER[ri]) : '')
           +nutBars(m, STAGES_ORDER[ri])
           +'</td>';
       }).join('');
@@ -3953,7 +4020,9 @@ function printMenuTable(withNut) {
       +'<colgroup><col style="width:13%"><col style="width:29%"><col style="width:29%"><col style="width:29%"></colgroup>'
       +'<thead><tr>'
       +'<th class="gm" style="background:#82bc78;color:#fff;font-size:13px;font-weight:700;padding:7px 4px;border:1px solid #c0e8a8;">단 &nbsp; 계</th>'
-      +'<th colspan="3" class="gm" style="background:#82bc78;color:#fff;font-size:13px;font-weight:700;padding:7px 4px;border:1px solid #c0e8a8;">메 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;뉴</th>'
+      +'<th colspan="3" class="gm" style="background:#82bc78;color:#fff;font-size:13px;font-weight:700;padding:7px 4px;border:1px solid #c0e8a8;">메 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;뉴'
+      +(withNut ? '<span style="font-size:10px;font-weight:500;opacity:.9;"> &nbsp;( 막대 = 하루 권장량 대비 )</span>' : '')
+      +'</th>'
       +'</tr></thead>'
       +'<tbody>'+rows+'</tbody>'
       +'</table>'
