@@ -3787,10 +3787,18 @@ function printMenuTable(withNut) {
   //   중기 = 반으로 나눠 하루 2회 (하루 1팩)
   //   후기·완료기 = 하루 3회 (하루 1.5팩)
   // 그래서 "한 팩" 기준으로 %를 내면 하루 섭취량보다 적게 나온다. 하루 기준으로 계산한다.
+  // 실제로 아이가 하루에 먹는 양. 사장님이 손님들 드시는 양을 보고 알려주신 값.
+  //   중기   1회 100~120g x 하루 3회 = 약 330g
+  //   후기   1회 150~180g x 하루 3회 = 약 495g
+  //   완료기 1회 180~200g x 하루 3끼 = 약 570g
+  // 작은팩(230g) 기준으로 환산해서 하루 섭취량을 계산한다.
+  // WHO가 권하는 이유식 열량(중기 200 / 후기 300 / 완료기 550kcal)과 대조해보면
+  // 중기 220kcal, 후기 329kcal로 거의 맞아떨어져서 이 값이 타당함을 확인했다.
+  const BASE_PACK_G = 230;
   const DAILY_SERVING = {
-    중기:   { times: 2, packs: 1,   label: '하루 2회 (1팩)' },
-    후기:   { times: 3, packs: 1.5, label: '하루 3회 (1.5팩)' },
-    완료기: { times: 3, packs: 1.5, label: '하루 3회 (1.5팩)' },
+    중기:   { once: '100~120g', times: 3, grams: 330, label: '하루 3회 · 약 330g' },
+    후기:   { once: '150~180g', times: 3, grams: 495, label: '하루 3회 · 약 495g' },
+    완료기: { once: '180~200g', times: 3, grams: 570, label: '하루 3끼 · 약 570g' },
   };
 
   // 엄마들이 궁금해하는 순서: 열량 → 단백질 → 철분 → 칼슘
@@ -3806,11 +3814,12 @@ function printMenuTable(withNut) {
     let f;
     try { f = nutritionFacts(m, stage, 230); } catch (e) { return ''; }
     if (!f || !f.values || !f.pct || !f.values[0]) return '';
-    const sv = DAILY_SERVING[stage] || { packs: 1, label: '' };
+    const sv = DAILY_SERVING[stage] || { grams: BASE_PACK_G, label: '' };
+    const mul = sv.grams / BASE_PACK_G;   // 하루 섭취량 ÷ 한 팩
 
     const rows = BAR_ROWS.map(r => {
-      const val = f.values[r.i] * sv.packs;
-      const pct = Math.round(f.pct[r.i] * sv.packs);
+      const val = f.values[r.i] * mul;
+      const pct = Math.round(f.pct[r.i] * mul);
       const w = Math.max(2, Math.min(100, pct));
       const shown = r.dec ? Math.round(val * 10) / 10 : Math.round(val);
       return '<div style="display:flex;align-items:center;gap:3px;line-height:1.1;margin-bottom:2.5px;">'
@@ -3837,13 +3846,14 @@ function printMenuTable(withNut) {
     + '<div style="text-align:center;margin-bottom:2.5mm;">'
     +   '막대는 <b>하루 권장 섭취량</b>을 100으로 두고 하루에 드시는 양이 채우는 정도입니다. '
     +   '이유식은 하루 영양의 전부가 아니라 <b>분유·모유와 나눠 맡는</b> 것이라, 막대가 끝까지 차지 않는 것이 정상입니다.<br>'
-    +   '세계보건기구(WHO)는 이유식으로 채울 열량을 <b>중기 200 · 후기 300 · 완료기 550kcal</b>로 권합니다.'
+    +   '세계보건기구(WHO)가 권하는 이유식 열량은 <b>중기 200 · 후기 300 · 완료기 550kcal</b>인데, '
+    +   '까꿍 디미방 이유식은 하루 드시는 양 기준 <b>중기 약 220 · 후기 약 330kcal</b>로 그 기준을 채웁니다.'
     + '</div>'
     + '<div style="display:flex;gap:4mm;">'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
     +     '<b style="color:#4a7c3f;">고기 함량을 아끼지 않았습니다</b><br>'
     +     '작은 팩 하나에 <b>익힌 한우 18g</b>, 닭가슴살과 생선은 <b>20g</b>을 그대로 담습니다. '
-    +     '그래서 이 한 팩만으로 하루 단백질 권장량의 <b>절반 가까이</b>가 채워집니다. '
+    +     '그래서 하루 드시는 양이면 <b>단백질 권장량을 거의 다</b> 채웁니다. '
     +     '근육과 키가 가장 빠르게 자라는 시기라, 단백질만큼은 넉넉해야 한다고 믿습니다.'
     +   '</div>'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
