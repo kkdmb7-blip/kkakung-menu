@@ -3906,7 +3906,7 @@ function printMenuTable(withNut) {
       const g = gradeOf(r.key, pct, kcal, stage);
       if (g[0] >= 1 && r.key !== 'kcal') good.push(r.name + ' ' + g[1]);
       const w = Math.max(3, Math.min(100, pct));
-      return '<div style="display:flex;align-items:center;gap:4px;line-height:1.15;margin-bottom:3px;">'
+      return '<div style="display:flex;align-items:center;gap:4px;line-height:1.15;margin-bottom:2px;">'
         + '<span style="width:34px;color:#6f8069;flex-shrink:0;">' + r.name + '</span>'
         + '<span style="flex:1;height:7px;background:#edf0ea;border-radius:4px;overflow:hidden;display:block;">'
         +   '<span style="display:block;height:7px;width:' + w + '%;background:' + GRADE_COLOR[String(g[0])] + ';border-radius:4px;"></span>'
@@ -3935,19 +3935,19 @@ function printMenuTable(withNut) {
     + '<div style="display:flex;gap:4mm;">'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.2mm 2.5mm;">'
     +     '<b style="color:#4a7c3f;">고기 함량을 아끼지 않았습니다</b><br>'
-    +     '작은 팩 하나에 <b>익힌 한우 18g</b>, 닭가슴살과 생선은 <b>20g</b>을 그대로 담습니다. '
+    +     '작은 팩 하나에 <b>익힌 한우 18g</b>, 닭가슴살·생선은 <b>20g</b>을 담습니다. '
     +     '그래서 아기가 하루에 먹는 양이면 <b>단백질 권장량을 거의 다</b> 채웁니다. '
-    +     '근육과 키가 가장 빠르게 자라는 시기라, 단백질만큼은 넉넉해야 한다고 믿습니다.'
+    +     '가장 빠르게 자라는 시기라 단백질만큼은 넉넉해야 한다고 믿습니다.'
     +   '</div>'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.2mm 2.5mm;">'
     +     '<b style="color:#4a7c3f;">철분, 가장 신경 쓰는 영양소입니다</b><br>'
     +     '생후 6개월이면 엄마에게 받아 둔 철분이 거의 바닥납니다. '
-    +     '그래서 <b>흡수율 높은 붉은 고기와 생선</b>을 매 끼니 빠뜨리지 않습니다. '
-    +     '다만 하루 필요량을 죽만으로 다 채우기는 어렵습니다. 철분 강화 시리얼이나 영양제를 함께 챙겨주세요.'
+    +     '그래서 <b>흡수율 높은 붉은 고기와 생선</b>을 매 끼니 넣습니다. '
+    +     '다만 죽만으로 하루 필요량을 다 채우긴 어려워, 철분 강화 시리얼이나 영양제를 함께 챙겨주세요.'
     +   '</div>'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.2mm 2.5mm;">'
     +     '<b style="color:#4a7c3f;">칼슘은 분유·모유와 함께</b><br>'
-    +     '이 시기 칼슘은 대부분 분유·모유에서 채워집니다. 죽에서 낮게 보이는 것이 정상이며, '
+    +     '이 시기 칼슘은 대부분 분유·모유에서 채워집니다. 낮게 보이는 것이 정상이며, '
     +     '완료기에는 <b>아기치즈·두부</b>를 넣어 따로 챙깁니다.'
     +   '</div>'
     + '</div>'
@@ -3990,9 +3990,10 @@ function printMenuTable(withNut) {
     return [...ord, ...sfx];
   }
 
-  function fmtI(ingStr, mtype, menuName) {
+  function fmtI(ingStr, mtype, menuName, perLine) {
     const p = sortI(ingStr, menuName||'', mtype);
-    const lines=[]; for(let i=0;i<p.length;i+=2) lines.push(p.slice(i,i+2).join(', '));
+    const n = perLine || 2;
+    const lines=[]; for(let i=0;i<p.length;i+=n) lines.push(p.slice(i,i+n).join(', '));
     return lines.map(l=>'<div>'+l+'</div>').join('');
   }
 
@@ -4012,12 +4013,20 @@ function printMenuTable(withNut) {
     const menus = (day.menus||[]).slice().sort((a,b)=>(typeOrd[a.type]??2)-(typeOrd[b.type]??2));
     const ori = day.origins || buildOri(menus);
     const dt = formatKorDate(day.date);
+    const ING_FS = 10.5, ING_LH = 1.55;          // 한 줄 약 16.3px
+    // 재료가 많은 메뉴에 맞춰 한 줄에 몇 개씩 넣을지 정한다(3줄을 넘기지 않게)
+    const ingMax = Math.max(1, ...menus.map(m =>
+      sortI(m.ingredients || '', m.displayName || m.name || '', m.type).length));
+    const ingPerLine = ingMax >= 7 ? 3 : 2;
+    const ingLines = Math.ceil(ingMax / ingPerLine);
+    const ingH = withNut ? Math.ceil(ingLines * ING_FS * ING_LH) + 10 : 80;
+
     const rows = STAGES.map((st,ri) => {
       const cells = menus.map((m,mi) => {
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
           +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false"'+pe()+'>'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
-          +'<div style="padding:4px;font-size:11px;line-height:1.6;color:#333;text-align:center;height:'+(withNut?52:80)+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+          +'<div style="padding:4px;font-size:'+(withNut?ING_FS:11)+'px;line-height:'+(withNut?ING_LH:1.65)+';color:#333;text-align:center;height:'+ingH+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw,withNut?ingPerLine:2)+'</div>'
 
           +nutBars(m, STAGES_ORDER[ri])
           +'</td>';
