@@ -3846,27 +3846,42 @@ function printMenuTable(withNut) {
   // 단백질 103%와 칼슘 7%가 똑같아 보여서, 판정에 따라 색을 나눈다.
   //   칼슘은 원래 분유·모유가 맡는 몫이라 아예 다른 계열(회청색)로 빼서
   //   "부족한 게 아니라 담당이 다른 것"임을 색으로 알린다.
-  // 알레르기는 칸마다 넣으면 있는 칸만 높아져서 막대 줄이 어긋난다.
-  // 표 아래 한 곳에 모아서, 같은 메뉴가 세 단계에 걸쳐 몇 번인지로 알려준다.
-  //   (한우는 1·4·7번, 닭은 2·5·8번, 기타단백질은 3·6·9번)
+  // 알레르기는 칸마다 넣으면 있는 칸만 높아져서 막대 줄이 어긋난다. 표 아래 한 곳에 모은다.
+  // 중기는 빠지는 재료가 있어 같은 메뉴라도 알레르기 목록이 달라진다.
+  // (3번은 새우가 빠지므로 대두만, 6·9번은 새우·대두) — 칸마다 실제 내용으로 다시 계산한다.
   function allergyBox(menus) {
-    const al = [], mid = [];
-    (menus || []).forEach((m, mi) => {
-      const nums = [0, 1, 2].map(ri => (NUMS[ri] && NUMS[ri][mi] || '').replace('.', '')).filter(Boolean).join('·');
-      const list = allergensOf(m.ingredients);
-      if (list.length) al.push('<b>' + nums + '번</b> ' + list.join('·'));
-      const note = midNoteOf(m);
-      if (note) mid.push('<b>' + ((NUMS[0] && NUMS[0][mi] || '').replace('.', '')) + '번</b> ' + buildTitle(m) + ' — ' + note);
+    const groups = new Map();
+    const mids = [];
+    (menus || []).forEach((m0, mi) => {
+      STAGES_ORDER.forEach((st, ri) => {
+        const list = allergensOf(stageMenu(m0, st).ingredients);
+        if (!list.length) return;
+        const key = list.join('·');
+        const num = String((NUMS[ri] && NUMS[ri][mi]) || '').replace('.', '');
+        if (!num) return;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(num);
+      });
+      const banned = bannedForMidStage(m0.ingredients);
+      if (banned.length) {
+        const num = String((NUMS[0] && NUMS[0][mi]) || '').replace('.', '');
+        mids.push('<b>' + num + '번</b> ' + banned.join('·') + '를 빼고 조리합니다');
+      }
     });
-    if (!al.length && !mid.length) return '';
+    if (!groups.size && !mids.length) return '';
+    const parts = [];
+    groups.forEach((nums, key) => {
+      nums.sort((x, y) => Number(x) - Number(y));
+      parts.push('<b>' + nums.join('·') + '번</b> ' + key);
+    });
     let h = '<div style="border:1px solid #f0e0cc;border-radius:6px;background:#fdf8f2;padding:2mm 5mm;margin-top:2mm;font-size:10px;line-height:1.6;color:#8a6234;text-align:center;word-break:keep-all;">';
-    if (al.length) {
-      h += '<span style="font-weight:700;color:#a8672c;">알레르기 유발 재료</span> &nbsp; ' + al.join(' &nbsp;/&nbsp; ');
+    if (parts.length) {
+      h += '<span style="font-weight:700;color:#a8672c;">알레르기 유발 재료</span> &nbsp; ' + parts.join(' &nbsp;/&nbsp; ');
     }
-    if (mid.length) {
-      h += (al.length ? '<br>' : '')
+    if (mids.length) {
+      h += (parts.length ? '<br>' : '')
         + '<span style="font-weight:700;color:#c0491a;">중기 제외</span> &nbsp; '
-        + '<span style="color:#c0491a;">' + mid.join(' &nbsp;/&nbsp; ') + '</span>';
+        + '<span style="color:#c0491a;">' + mids.join(' &nbsp;/&nbsp; ') + '</span>';
     }
     return h + '</div>';
   }
@@ -3957,6 +3972,20 @@ function printMenuTable(withNut) {
     + '</div>'
     + '</div>';
 
+  // 중기 칸에는 빠지는 재료를 아예 넣지 않는다. 재료 목록과 메뉴 이름 둘 다.
+  function stageMenu(m, stage) {
+    if (stage !== '중기' || !m) return m;
+    const banned = bannedForMidStage(m.ingredients);
+    if (!banned.length) return m;
+    const keep = x => x && !banned.some(bb => x === bb || x.includes(bb));
+    const strip = t => String(t || '').split(/\s+/).filter(keep).join(' ').trim();
+    return Object.assign({}, m, {
+      ingredients: String(m.ingredients || '').split(',').map(x => x.trim()).filter(keep).join(', '),
+      displayName: strip(m.displayName || m.name),
+      name: strip(m.name || m.displayName),
+    });
+  }
+
   function buildTitle(m) {
     const sfxIng = ['양파','채소상탕','한우육수','닭육수'];
     const ings = (m.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
@@ -4022,7 +4051,8 @@ function printMenuTable(withNut) {
     const ingH = withNut ? Math.ceil(ingLines * ING_FS * ING_LH) + 10 : 80;
 
     const rows = STAGES.map((st,ri) => {
-      const cells = menus.map((m,mi) => {
+      const cells = menus.map((m0,mi) => {
+        const m = stageMenu(m0, STAGES_ORDER[ri]);
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
           +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false"'+pe()+'>'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
