@@ -3783,61 +3783,82 @@ function printMenuTable(withNut) {
   const TYPE_SFX = {hanwoo:['한우육수','양파','채소상탕'],chicken:['닭육수','양파','채소상탕'],p3:['양파','채소상탕'],protein3:['양파','채소상탕']};
   const FORG = {'파로':'이탈리아','아보카도':'페루','아마란스':'페루','퀴노아':'페루','단호박':'뉴질랜드','렌틸콩':'캐나다','오트밀':'캐나다','햄프시드':'캐나다','흰강낭콩':'캐나다','테프':'에티오피아','연어':'노르웨이','캐슈넛':'베트남','치아씨드':'멕시코','소고기':'호주','황태':'러시아','대구살':'원양','모짜렐라치즈':'이탈리아','병아리콩':'이집트'};
 
-  // 숫자만 적으면 "7.1g이 많은 건지 적은 건지" 알 수가 없어서 막대로 보여준다.
-  // 막대 길이 = 하루 필요량 대비. 한 팩은 한 끼라서 보통 20~35%에서 찬다.
-  // 엄마들이 가장 궁금해하는 순서대로: 열량 → 단백질 → 철분 → 칼슘
+  // 한 팩을 한 번에 다 먹는 게 아니라 나눠서 여러 번 먹인다.
+  //   중기 = 반으로 나눠 하루 2회 (하루 1팩)
+  //   후기·완료기 = 하루 3회 (하루 1.5팩)
+  // 그래서 "한 팩" 기준으로 %를 내면 하루 섭취량보다 적게 나온다. 하루 기준으로 계산한다.
+  const DAILY_SERVING = {
+    중기:   { times: 2, packs: 1,   label: '하루 2회 (1팩)' },
+    후기:   { times: 3, packs: 1.5, label: '하루 3회 (1.5팩)' },
+    완료기: { times: 3, packs: 1.5, label: '하루 3회 (1.5팩)' },
+  };
+
+  // 엄마들이 궁금해하는 순서: 열량 → 단백질 → 철분 → 칼슘
   const BAR_ROWS = [
-    { i: 0, name: '열량',   unit: 'kcal' },
-    { i: 2, name: '단백질', unit: 'g' },
-    { i: 5, name: '철분',   unit: 'mg' },
-    { i: 4, name: '칼슘',   unit: 'mg' },
+    { i: 0, name: '열량',   unit: 'kcal', dec: 0 },
+    { i: 2, name: '단백질', unit: 'g',    dec: 1 },
+    { i: 5, name: '철분',   unit: 'mg',   dec: 1 },
+    { i: 4, name: '칼슘',   unit: 'mg',   dec: 0 },
   ];
+
   function nutBars(m, stage) {
     if (!withNut) return '';
     let f;
     try { f = nutritionFacts(m, stage, 230); } catch (e) { return ''; }
     if (!f || !f.values || !f.pct || !f.values[0]) return '';
+    const sv = DAILY_SERVING[stage] || { packs: 1, label: '' };
+
     const rows = BAR_ROWS.map(r => {
-      const pct = f.pct[r.i];
-      const w = Math.max(2, Math.min(100, pct));   // 0%도 막대가 보이게 최소 2%
-      return '<div style="display:flex;align-items:center;gap:3px;line-height:1.1;margin-bottom:2px;">'
-        + '<span style="width:27px;color:#7a8a75;flex-shrink:0;">' + r.name + '</span>'
-        + '<span style="flex:1;height:5px;background:#e8ece6;border-radius:3px;overflow:hidden;">'
-        +   '<span style="display:block;height:5px;width:' + w + '%;background:#8fbf6f;border-radius:3px;"></span>'
+      const val = f.values[r.i] * sv.packs;
+      const pct = Math.round(f.pct[r.i] * sv.packs);
+      const w = Math.max(2, Math.min(100, pct));
+      const shown = r.dec ? Math.round(val * 10) / 10 : Math.round(val);
+      return '<div style="display:flex;align-items:center;gap:3px;line-height:1.1;margin-bottom:2.5px;">'
+        + '<span style="width:27px;color:#6f8069;flex-shrink:0;">' + r.name + '</span>'
+        // 남은 칸을 회색으로 비워두면 "부족하다"로 읽혀서, 분유·모유가 채우는 몫으로 색을 넣는다
+        + '<span style="flex:1;height:6px;background:#efe7d4;border-radius:3px;overflow:hidden;display:block;">'
+        +   '<span style="display:block;height:6px;width:' + w + '%;background:#7fb069;border-radius:3px;"></span>'
         + '</span>'
-        + '<span style="width:52px;text-align:right;color:#5f7059;flex-shrink:0;">'
-        +   f.values[r.i] + r.unit + ' <b style="color:#4a7c3f;">' + pct + '%</b>'
-        + '</span>'
+        + '<span style="width:30px;text-align:right;color:#4a7c3f;font-weight:700;flex-shrink:0;">' + pct + '%</span>'
+        + '<span style="width:40px;text-align:right;color:#8a9a85;flex-shrink:0;">' + shown + r.unit + '</span>'
         + '</div>';
     }).join('');
-    return '<div style="border-top:1px dashed #d0d0d0;background:#fbfdfa;padding:5px 6px 4px;font-size:8px;">' + rows + '</div>';
+
+    return '<div style="border-top:1px dashed #d0d0d0;background:#fbfdfa;padding:4px 6px;font-size:8px;">'
+      + '<div style="text-align:center;color:#7aaa68;font-weight:700;margin-bottom:3px;letter-spacing:-.2px;">'
+      +   '하루 권장량 대비 &nbsp;·&nbsp; ' + sv.label
+      + '</div>'
+      + rows
+      + '</div>';
   }
 
-  // 막대가 무슨 뜻인지, 그리고 엄마들이 가장 많이 묻는 것부터 답해 둔다.
   const nutBox = '<div style="border:1px solid #e0f0d8;border-radius:8px;background:#f7fcf5;padding:3.5mm 6mm;margin-top:3.5mm;font-size:10.5px;line-height:1.8;color:#5f6f5a;word-break:keep-all;">'
-    + '<div style="text-align:center;font-weight:700;color:#7aaa68;letter-spacing:.1em;margin-bottom:2mm;">— 영양성분 안내 (참고용) —</div>'
+    + '<div style="text-align:center;font-weight:700;color:#7aaa68;letter-spacing:.1em;margin-bottom:2mm;">— 영양성분 안내 —</div>'
     + '<div style="text-align:center;margin-bottom:2.5mm;">'
-    +   '막대는 <b>하루에 필요한 양 중 이 한 팩이 채워주는 정도</b>예요. '
-    +   '이유식 한 팩은 하루치가 아니라 <b>한 끼</b>라서 <b>20~35%면 충분</b>합니다. '
-    +   '수치는 작은팩 기준이고, 큰팩은 약 1.5배예요.'
+    +   '막대는 <b>하루 권장 섭취량</b>을 100으로 두고, 하루에 드시는 양이 채우는 정도를 나타냅니다. '
+    +   '<span style="display:inline-block;width:22px;height:7px;background:#7fb069;border-radius:3px;vertical-align:middle;"></span> 이유식이 채우는 몫 &nbsp;/&nbsp; '
+    +   '<span style="display:inline-block;width:22px;height:7px;background:#efe7d4;border-radius:3px;vertical-align:middle;"></span> 분유·모유와 간식이 채우는 몫'
     + '</div>'
     + '<div style="display:flex;gap:4mm;">'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
-    +     '<b style="color:#4a7c3f;">철분이 가장 중요해요</b><br>'
-    +     '생후 6개월쯤이면 엄마에게 받아 둔 철분이 거의 떨어져요. '
-    +     '이때부터는 이유식으로 채워야 해서 고기·생선을 꼭 넣습니다.'
+    +     '<b style="color:#4a7c3f;">고기 함량을 아끼지 않았습니다</b><br>'
+    +     '작은 팩 하나에 <b>익힌 한우 18g</b>, 닭가슴살과 생선은 <b>20g</b>을 그대로 담습니다. '
+    +     '그래서 이 한 팩만으로 하루 단백질 권장량의 <b>절반 가까이</b>가 채워집니다. '
+    +     '근육과 키가 가장 빠르게 자라는 시기라, 단백질만큼은 넉넉해야 한다고 믿습니다.'
     +   '</div>'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
-    +     '<b style="color:#4a7c3f;">단백질이 높아 보여도 괜찮아요</b><br>'
-    +     '아기 하루 권장량이 15~20g으로 원래 작아서, 고기가 조금만 들어가도 비율이 크게 나옵니다.'
+    +     '<b style="color:#4a7c3f;">철분, 가장 신경 쓰는 영양소입니다</b><br>'
+    +     '생후 6개월이면 엄마에게 받아 둔 철분이 거의 바닥납니다. '
+    +     '그래서 까꿍 디미방은 <b>흡수율 높은 붉은 고기와 생선</b>을 매 끼니 빠뜨리지 않습니다.'
     +   '</div>'
     +   '<div style="flex:1;background:#fff;border:1px solid #e4f0dc;border-radius:6px;padding:2.5mm 3mm;">'
-    +     '<b style="color:#4a7c3f;">칼슘이 낮은 건 정상이에요</b><br>'
-    +     '이 시기 칼슘은 대부분 <b>분유·모유</b>에서 채웁니다. 죽으로 다 채우는 게 아니에요.'
+    +     '<b style="color:#4a7c3f;">칼슘은 분유·모유와 함께</b><br>'
+    +     '이 시기 칼슘은 대부분 분유·모유에서 채워집니다. 죽에서 낮게 보이는 것이 정상이며, '
+    +     '완료기에는 <b>아기치즈·두부</b>를 넣어 따로 챙깁니다.'
     +   '</div>'
     + '</div>'
     + '<div style="text-align:center;margin-top:2.5mm;font-size:9.5px;color:#8a9a85;">'
-    +   '기준: 보건복지부 2020 한국인 영양소 섭취기준 · 중기·후기는 6~11개월, 완료기는 1~2세 기준'
+    +   '기준: 보건복지부 2020 한국인 영양소 섭취기준 · 중기·후기는 6~11개월, 완료기는 1~2세 · 참고용 수치입니다'
     + '</div>'
     + '</div>';
 
@@ -3909,6 +3930,7 @@ function printMenuTable(withNut) {
         +'<td style="background:#eef6e8;padding:8px 4px;text-align:center;vertical-align:middle;border:1px solid #d8f0c8;width:13%;">'
         +'<div style="font-size:11px;font-weight:800;line-height:1.7;">'+st.t+'</div>'
         +'<div style="font-size:10.5px;color:#666;margin-top:2px;">'+st.s+'</div>'
+        +(withNut && DAILY_SERVING[STAGES_ORDER[ri]] ? '<div style="font-size:9.5px;color:#7aaa68;font-weight:700;margin-top:3px;">'+DAILY_SERVING[STAGES_ORDER[ri]].label+'</div>' : '')
         +'</td>'+cells+'</tr>';
     }).join('');
     return '<div style="flex:1;display:flex;flex-direction:column;">'
