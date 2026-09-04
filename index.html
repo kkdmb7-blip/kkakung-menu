@@ -248,6 +248,7 @@ html, body { overflow-x: hidden; }
 .nut-unknown { font-size:11px; color:#c2410c; margin-top:6px; font-weight:600; }
 .nut-warn { margin-top:12px; padding:10px 12px; background:#FFF6E5; border:1px solid #f0c86a; border-radius:10px; font-size:12px; color:#7a5300; line-height:1.6; }
 .nut-warn span { opacity:.85; }
+.nut-slice { font-size:12px; color:#1d6fa5; margin-top:5px; background:#EAF6FF; border-radius:8px; padding:5px 9px; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -2477,9 +2478,23 @@ const COUNT_ITEMS = {
 };
 function countInfoOf(name) { return COUNT_ITEMS[String(name || '').trim()] || null; }
 function sliceInfoOf(name) { return SLICE_ITEMS[String(name || '').trim()] || null; }
-function sliceText(info) {
-  const frac = { 2: '½', 3: '⅓', 4: '¼' };
-  return Object.keys(info).map(st => `${st} ${frac[info[st]] || ('1/' + info[st])}장`).join(' · ');
+
+// 0.375 → ⅜ 처럼 보기 좋게. 딱 떨어지지 않으면 소수로.
+const FRACTION_TEXT = {
+  0.25: '¼', 0.333: '⅓', 0.375: '⅜', 0.5: '½', 0.625: '⅝', 0.667: '⅔', 0.75: '¾',
+  1: '1', 1.5: '1½', 2: '2', 2.5: '2½', 3: '3',
+};
+function amountText(n) {
+  const key = Math.round(n * 1000) / 1000;
+  if (FRACTION_TEXT[key] !== undefined) return FRACTION_TEXT[key];
+  const whole = Math.floor(key), rest = Math.round((key - whole) * 1000) / 1000;
+  if (whole > 0 && FRACTION_TEXT[rest] !== undefined) return whole + FRACTION_TEXT[rest];
+  return String(Math.round(key * 100) / 100);
+}
+// 치즈는 단계마다 다르고, 큰팩이면 1.5배
+function sliceText(info, volume) {
+  const mul = isBig(volume) ? BIG_SCALE : 1;
+  return Object.keys(info).map(st => `${st} ${amountText(mul / info[st])}장`).join(' · ');
 }
 
 function isBroth(name) { return BROTH.includes(String(name || '').trim()); }
@@ -2495,9 +2510,9 @@ function nutritionOf(menu, volume) {
   names.forEach(name => {
     if (isBroth(name)) { broth.push(name); return; }
     const sl = sliceInfoOf(name);
-    if (sl) { slices.push({ name, text: sliceText(sl) }); return; }
+    if (sl) { slices.push({ name, text: sliceText(sl, volume) }); return; }
     const ci = countInfoOf(name);
-    if (ci) { slices.push({ name, text: '한 팩에 ' + ci.per + ci.unit }); return; }
+    if (ci) { slices.push({ name, text: '한 팩에 ' + amountText(ci.per * (isBig(volume) ? BIG_SCALE : 1)) + ci.unit }); return; }
     if (PROTEIN_G[name]) {
       rows.push({ name, grams: isBig(volume) ? PROTEIN_G[name].big : PROTEIN_G[name].small });
       return;
@@ -2549,7 +2564,9 @@ function openNutrition() {
         html += `<div class="nut-vol">${vv.label}</div><div class="nut-rows">`
           + n.rows.map(r => `<span class="nut-chip"><b>${escapeDup(r.name)}</b> ${r.grams}g</span>`).join('')
           + (n.rows.length ? `<span class="nut-total">합 ${n.total}g</span>` : '')
-          + '</div>';
+          + '</div>'
+          // 치즈·계란은 무게가 아니라 장·개수로 세는데 용량에 따라 달라지므로 같은 블록에 둔다
+          + n.slices.map(x => `<div class="nut-slice"><b>${escapeDup(x.name)}</b> — ${escapeDup(x.text)}</div>`).join('');
       });
       const u = nutritionOf(m, 230).unknown;
       if (u.length) html += `<div class="nut-unknown">중량 미등록: ${escapeDup(u.join(', '))}</div>`;
@@ -2575,8 +2592,9 @@ function copyNutrition() {
       out += `\n${day.dayName}요일 · ${typeLabel(m.type)} — ${m.displayName || m.name}\n`;
       [[230, '작은팩'], [300, '큰팩']].forEach(([v, lb]) => {
         const n = nutritionOf(m, v);
-        if (!n.rows.length) return;
-        out += `  ${lb}: ` + n.rows.map(r => `${r.name} ${r.grams}g`).join(', ') + `\n`;
+        if (!n.rows.length && !n.slices.length) return;
+        out += `  ${lb}: ` + n.rows.map(r => `${r.name} ${r.grams}g`).join(', ')
+             + n.slices.map(x => `${n.rows.length ? ', ' : ''}${x.name} ${x.text}`).join('') + `\n`;
       });
       const u = nutritionOf(m, 230).unknown;
       if (u.length) out += `  (중량 미등록: ${u.join(', ')})\n`;
