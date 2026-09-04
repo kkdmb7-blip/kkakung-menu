@@ -2749,12 +2749,16 @@ const ALLERGEN_OF = {
   '토마토': '토마토', '복숭아': '복숭아', '메밀': '메밀',
   '굴': '조개류', '전복': '조개류', '홍합': '조개류', '오징어': '오징어', '게': '게',
 };
-function allergensOf(ingredients) {
+// 메뉴명에 그대로 나오는 육류는 굳이 다시 적지 않는다.
+const ALLERGEN_OBVIOUS = ['쇠고기', '닭고기', '돼지고기'];
+function allergensOf(ingredients, all) {
   const out = [];
   String(ingredients || '').split(',').forEach(raw => {
     const n = raw.trim();
     const a = ALLERGEN_OF[n];
-    if (a && !out.includes(a)) out.push(a);
+    if (!a) return;
+    if (!all && ALLERGEN_OBVIOUS.includes(a)) return;
+    if (!out.includes(a)) out.push(a);
   });
   return out;
 }
@@ -3935,7 +3939,8 @@ function printMenuTable(withNut) {
     +   '</div>'
     + '</div>'
     + '<div style="text-align:center;margin-top:2.5mm;font-size:9.5px;color:#8a9a85;">'
-    +   '기준: 보건복지부 2020 한국인 영양소 섭취기준 · 중기·후기는 6~11개월, 완료기는 1~2세 · 참고용 수치입니다'
+    +   '영양 기준: 보건복지부 2020 한국인 영양소 섭취기준 (중기·후기 6~11개월 / 완료기 1~2세) · 참고용 수치입니다<br>'
+    +   '알레르기 표시: 식약처 표시대상 22종 기준 · 쇠고기·닭고기처럼 메뉴 이름에 그대로 드러나는 재료는 따로 적지 않았습니다'
     + '</div>'
     + '</div>';
 
@@ -3999,7 +4004,7 @@ function printMenuTable(withNut) {
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
           +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false"'+pe()+'>'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
-          +'<div style="padding:4px;font-size:11px;line-height:1.6;color:#333;text-align:center;height:'+(withNut?52:80)+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
+          +'<div style="padding:4px;font-size:11px;line-height:1.6;color:#333;text-align:center;height:'+(withNut?49:80)+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw)+'</div>'
           +(withNut ? allergyLine(m, STAGES_ORDER[ri]) : '')
           +nutBars(m, STAGES_ORDER[ri])
           +'</td>';
