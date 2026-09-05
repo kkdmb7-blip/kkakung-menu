@@ -276,6 +276,14 @@ html, body { overflow-x: hidden; }
 .nf-note-i:last-child { margin-bottom:0; }
 .nf-note-i b { display:block; color:#2f5d27; }
 .nf-note-i span { color:#5a6b55; }
+.nut-stage { font-size:11px; font-weight:700; color:#4a7c3f; background:#eef6e8; border-radius:6px; padding:3px 9px; display:inline-block; margin:8px 0 4px; }
+.nut-drop { font-size:11px; color:#c0491a; background:#fdf3ee; border:1px solid #f3dccf; border-radius:6px; padding:5px 9px; margin-top:6px; }
+.nf-iron { margin-top:12px; background:#fbf7f2; border:1px solid #ecdfd0; border-radius:10px; padding:10px 12px; }
+.nf-iron-h { font-size:11px; font-weight:700; color:#96622c; margin-bottom:7px; }
+.nf-iron-i { display:inline-block; font-size:11px; background:#fff; border:1px solid #ecdfd0; border-radius:8px; padding:3px 8px; margin:0 4px 4px 0; color:#5a4a35; }
+.nf-iron-i b { color:#8a5a20; }
+.nf-iron-i span { color:#aa9a86; font-size:9px; margin-left:3px; }
+.nf-iron-n { font-size:10.5px; color:#8a7a66; margin-top:5px; line-height:1.6; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -2612,8 +2620,17 @@ function openNutrition() {
   (currentMenu || []).forEach(day => {
     if (day.type !== 'yushik' || day.removed) return;
     (day.menus || []).forEach(m => {
+      const dropped = bannedForMidStage(m.ingredients);
+      // 중기는 빠지는 재료가 있어 배합이 달라진다. 그때만 두 덩어리로 나눠 보여준다.
+      const variants = dropped.length
+        ? [{ tag: '중기', menu: midStageMenu(m) }, { tag: '후기·완료기', menu: m }]
+        : [{ tag: '', menu: m }];
       const name = m.displayName || m.name || '';
       html += `<div class="nut-menu"><div class="nut-head">${escapeDup(day.dayName)}요일 · ${escapeDup(typeLabel(m.type))} — ${escapeDup(name)}</div>`;
+      if (dropped.length) html += `<div class="nut-drop">중기는 ${escapeDup(dropped.join('·'))} 를 빼고 조리해요 — 배합이 달라집니다</div>`;
+      variants.forEach(va => {
+      const m = va.menu;
+      if (va.tag) html += `<div class="nut-stage">${va.tag}</div>`;
       vols.forEach(vv => {
         const n = nutritionOf(m, vv.v);
         html += `<div class="nut-vol">${vv.label}</div><div class="nut-rows">`
@@ -2622,6 +2639,7 @@ function openNutrition() {
           + '</div>'
           // 치즈·계란은 무게가 아니라 장·개수로 세는데 용량에 따라 달라지므로 같은 블록에 둔다
           + n.slices.map(x => `<div class="nut-slice"><b>${escapeDup(x.name)}</b> — ${escapeDup(x.text)}</div>`).join('');
+      });
       });
       const u = nutritionOf(m, 230).unknown;
       if (u.length) html += `<div class="nut-unknown">중량 미등록: ${escapeDup(u.join(', '))}</div>`;
@@ -2784,6 +2802,24 @@ const DRI_BY_STAGE = {
 };
 const DRI_AGE_LABEL = { 중기: '영아 6-11개월', 후기: '영아 6-11개월', 완료기: '유아 1-2세' };
 
+// 한 팩을 한 번에 다 먹는 게 아니라 나눠서 여러 번 먹인다.
+//   중기 = 반으로 나눠 하루 2회 (하루 1팩)
+//   후기·완료기 = 하루 3회 (하루 1.5팩)
+// 그래서 "한 팩" 기준으로 %를 내면 하루 섭취량보다 적게 나온다. 하루 기준으로 계산한다.
+// 실제로 아기가 하루에 먹는 양. 사장님이 손님 아기들 먹는 양을 보고 알려주신 값.
+//   중기   1회 100~120g x 하루 3회 = 약 330g
+//   후기   1회 150~180g x 하루 3회 = 약 495g
+//   완료기 1회 180~200g x 하루 3끼 = 약 570g
+// 작은팩(230g) 기준으로 환산해서 하루 섭취량을 계산한다.
+// WHO가 권하는 이유식 열량(중기 200 / 후기 300 / 완료기 550kcal)과 대조해보면
+// 중기 220kcal, 후기 329kcal로 거의 맞아떨어져서 이 값이 타당함을 확인했다.
+const BASE_PACK_G = 230;
+const DAILY_SERVING = {
+  중기:   { once: '100~120g', times: 3, grams: 330, label: '하루 3회 · 약 330g' },
+  후기:   { once: '150~180g', times: 3, grams: 495, label: '하루 3회 · 약 495g' },
+  완료기: { once: '180~200g', times: 3, grams: 570, label: '하루 3끼 · 약 570g' },
+};
+
 const NUTRIENT_LABELS = ['열량', '탄수화물', '단백질', '지방', '칼슘', '철', '나트륨'];
 const NUTRIENT_UNITS  = ['kcal', 'g', 'g', 'g', 'mg', 'mg', 'mg'];
 
@@ -2846,6 +2882,35 @@ function nutritionFacts(menu, stage, volume) {
 // 숫자만 보면 "단백질 85%? 너무 많은 거 아냐" "칼슘 3%면 부족한 거 아냐" 하고
 // 놀라시는 손님이 있어서, 계산값을 보고 쉬운 말로 풀어 준다.
 // 고정 문구가 아니라 실제 수치에 따라 달라진다.
+// 철분은 이 시기 가장 모자라기 쉬운데 죽만으로는 채우기 어렵다.
+// 어떤 재료를 넣으면 철분이 얼마나 오르는지 미리 볼 수 있게 정리한다.
+// 실제 배합 규칙(단백질은 고정량, 잎채소 7g, 나머지 20g 등)을 그대로 쓴다.
+function typicalGramsOf(name) {
+  if (PROTEIN_G[name]) return PROTEIN_G[name].small;
+  if (ONION.includes(name)) return ONION_G;
+  if (LEAF_VEGGIES.includes(name)) return LEAF_G;
+  if (SEAWEED.includes(name)) return SEAWEED_G;
+  if (SLICE_ITEMS[name]) return 18 / SLICE_ITEMS[name]["중기"];   // 중기 기준 한 팩 몫
+  if (COUNT_ITEMS[name]) return COUNT_ITEMS[name].per * 17;
+  if (BROTH.includes(name)) return 0;
+  return VEGGIE_SOLO;
+}
+// 같은 재료를 두 이름으로 등록해 둔 것들 — 목록에 두 번 나오지 않게 한쪽만 쓴다.
+const IRON_ALIAS_SKIP = new Set(['닭','달걀노른자','느타리','팽이','새송이','비타민','밤단호박']);
+function ironRanking(limit) {
+  const rows = [];
+  Object.keys(NUTRIENT_PER_100G).forEach(name => {
+    if (name === '밥') return;
+    if (IRON_ALIAS_SKIP.has(name)) return;   // 같은 재료의 다른 표기
+    const g = typicalGramsOf(name);
+    if (!g) return;
+    const mg = NUTRIENT_PER_100G[name][5] * g / 100;
+    if (mg <= 0) return;
+    rows.push({ name, grams: Math.round(g * 10) / 10, mg: Math.round(mg * 100) / 100 });
+  });
+  rows.sort((a, b) => b.mg - a.mg);
+  return rows.slice(0, limit || 12);
+}
 function customerNote(menu) {
   const combos = [];
   STAGES_ORDER.forEach(st => [230, 300].forEach(v => {
@@ -2926,8 +2991,15 @@ function openNutritionFacts() {
       html += '</div>';
     });
   });
+  // 철분은 죽만으로 채우기 어려워서, 어떤 재료가 도움이 되는지 같이 보여준다.
+  const iron = ironRanking(12);
+  const ironHtml = '<div class="nf-iron"><div class="nf-iron-h">철분이 높은 재료 (한 팩에 넣었을 때)</div>'
+    + iron.map(r => `<span class="nf-iron-i"><b>${escapeDup(r.name)}</b> ${r.mg}mg<span>${r.grams}g</span></span>`).join('')
+    + '<div class="nf-iron-n">하루 권장량은 6mg이에요. 메뉴를 짤 때 위쪽 재료를 하나 넣으면 철분이 눈에 띄게 올라가요.</div></div>';
+
   document.getElementById('nutritionFactsContent').innerHTML =
     (html || '<p style="color:var(--text-light);font-size:13px">이유식 메뉴가 없어요</p>')
+    + ironHtml
     + '<div class="nut-warn">이 수치는 <b>참고용</b>이에요. 포장에 붙이는 영양성분 표시로 쓰시려면 '
     + '식약처 식품영양성분DB 값으로 맞추거나 시험성적서를 받으셔야 해요.<br>'
     + '<span>밥은 중기 57g · 후기 58g · 완료기 75g(작은팩 기준, 큰팩 1.5배)으로 계산했어요. '
@@ -3038,6 +3110,70 @@ function confirmHeavyMenus(heavy) {
   });
 }
 
+// ===== 저장 전 영양 검사 =====
+// 재료 개수·중복은 보는데 영양은 안 봤다. 중기에서 새우가 빠지면 단백질이 24%까지
+// 떨어지는데도 그대로 저장됐다. 단백질이 확 낮은 메뉴를 저장 전에 알려준다.
+const WEAK_PROTEIN_PCT = 40;   // 하루 권장량 대비. 보통 60~120%가 나온다.
+function findWeakMenus() {
+  const out = [];
+  (currentMenu || []).forEach(day => {
+    if (day.type !== 'yushik' || day.removed) return;
+    (day.menus || []).forEach(m => {
+      STAGES_ORDER.forEach(stage => {
+        const sv = DAILY_SERVING[stage];
+        if (!sv) return;
+        let f;
+        try { f = nutritionFacts(m, stage, 230); } catch (e) { return; }
+        if (!f || !f.pct) return;
+        const pct = Math.round(f.pct[2] * sv.grams / BASE_PACK_G);
+        if (pct >= WEAK_PROTEIN_PCT) return;
+        out.push({
+          day: day.dayName || '', stage,
+          typeName: typeLabel(m.type),
+          name: (stage === '중기' ? midStageMenu(m) : m).displayName || m.name || '',
+          pct,
+          dropped: stage === '중기' ? bannedForMidStage(m.ingredients) : [],
+        });
+      });
+    });
+  });
+  return out;
+}
+
+// 팝업. '그대로 저장하기'면 true.
+function confirmWeakMenus(weak) {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'dup-overlay';
+    wrap.innerHTML =
+      '<div class="dup-box">'
+      + '<h3>단백질이 낮은 메뉴가 있어요</h3>'
+      + '<p class="dup-sub">보통은 하루 권장량의 60~120%가 나와요. '
+      + '아래 메뉴는 ' + WEAK_PROTEIN_PCT + '% 아래예요.</p>'
+      + '<div class="dup-list">'
+      + weak.map(x =>
+          '<div class="heavy-item">'
+          + '<div class="heavy-top">' + escapeDup(x.day) + '요일 · ' + escapeDup(x.stage) + ' · ' + escapeDup(x.typeName)
+          + '<span class="heavy-flag warn">단백질 ' + x.pct + '%</span></div>'
+          + '<div class="heavy-ing">' + escapeDup(x.name) + '</div>'
+          + (x.dropped.length
+              ? '<div class="heavy-note">' + escapeDup(x.dropped.join('·')) + ' 를 빼면서 단백질이 빠졌어요</div>'
+              : '')
+          + '</div>'
+        ).join('')
+      + '</div>'
+      + '<div class="dup-btns">'
+      + '<button type="button" class="dup-fix">수정하기</button>'
+      + '<button type="button" class="dup-go">그대로 저장하기</button>'
+      + '</div></div>';
+    const done = v => { wrap.remove(); resolve(v); };
+    wrap.querySelector('.dup-fix').onclick = () => done(false);
+    wrap.querySelector('.dup-go').onclick = () => done(true);
+    wrap.onclick = e => { if (e.target === wrap) done(false); };
+    document.body.appendChild(wrap);
+    wrap.querySelector('.dup-fix').focus();
+  });
+}
 // ===== 저장 전 재료 중복 검사 =====
 // 같은 단백질(한우/닭/기타) 안에서 같은 재료가 여러 날 나오면, 그 메뉴를 계속 시키는 아기는
 // 같은 걸 반복해서 먹게 된다. 메뉴를 짜다 보면 놓치기 쉬워서 저장 직전에 한 번 잡아준다.
@@ -3123,6 +3259,13 @@ async function saveMenu() {
   }
 
   // 저장 직전에 재료 중복을 알려준다. '수정하기'를 고르면 저장하지 않고 화면에 강조 표시.
+  // 영양 검사도 같이 본다. 재료 개수는 괜찮아도 단백질이 빠진 메뉴가 있다.
+  const weak = findWeakMenus();
+  if (weak.length > 0) {
+    const goOn = await confirmWeakMenus(weak);
+    if (!goOn) { showToast('메뉴를 고친 뒤 다시 저장해주세요'); return; }
+  }
+
   const dups = findTypeDuplicates();
   if (dups.length > 0) {
     const goOn = await confirmDuplicates(dups);
@@ -3844,23 +3987,6 @@ function printMenuTable(withNut) {
   const TYPE_SFX = {hanwoo:['한우육수','양파','채소상탕'],chicken:['닭육수','양파','채소상탕'],p3:['양파','채소상탕'],protein3:['양파','채소상탕']};
   const FORG = {'파로':'이탈리아','아보카도':'페루','아마란스':'페루','퀴노아':'페루','단호박':'뉴질랜드','렌틸콩':'캐나다','오트밀':'캐나다','햄프시드':'캐나다','흰강낭콩':'캐나다','테프':'에티오피아','연어':'노르웨이','캐슈넛':'베트남','치아씨드':'멕시코','소고기':'호주','황태':'러시아','대구살':'원양','모짜렐라치즈':'이탈리아','병아리콩':'이집트'};
 
-  // 한 팩을 한 번에 다 먹는 게 아니라 나눠서 여러 번 먹인다.
-  //   중기 = 반으로 나눠 하루 2회 (하루 1팩)
-  //   후기·완료기 = 하루 3회 (하루 1.5팩)
-  // 그래서 "한 팩" 기준으로 %를 내면 하루 섭취량보다 적게 나온다. 하루 기준으로 계산한다.
-  // 실제로 아기가 하루에 먹는 양. 사장님이 손님 아기들 먹는 양을 보고 알려주신 값.
-  //   중기   1회 100~120g x 하루 3회 = 약 330g
-  //   후기   1회 150~180g x 하루 3회 = 약 495g
-  //   완료기 1회 180~200g x 하루 3끼 = 약 570g
-  // 작은팩(230g) 기준으로 환산해서 하루 섭취량을 계산한다.
-  // WHO가 권하는 이유식 열량(중기 200 / 후기 300 / 완료기 550kcal)과 대조해보면
-  // 중기 220kcal, 후기 329kcal로 거의 맞아떨어져서 이 값이 타당함을 확인했다.
-  const BASE_PACK_G = 230;
-  const DAILY_SERVING = {
-    중기:   { once: '100~120g', times: 3, grams: 330, label: '하루 3회 · 약 330g' },
-    후기:   { once: '150~180g', times: 3, grams: 495, label: '하루 3회 · 약 495g' },
-    완료기: { once: '180~200g', times: 3, grams: 570, label: '하루 3끼 · 약 570g' },
-  };
 
   // 항목마다 "이 정도면 괜찮은지"의 기준이 다르다. 같은 초록으로 칠하면
   // 단백질 103%와 칼슘 7%가 똑같아 보여서, 판정에 따라 색을 나눈다.
@@ -4241,6 +4367,18 @@ function printMenuTable(withNut) {
     +'const SB_KEY=\'sb_publishable_3-9zobXqx6Nv36LzmNMBpA_fohZqA5x\';'
     +'const SB_H={\'apikey\':SB_KEY,\'Authorization\':\'Bearer \'+SB_KEY,\'Content-Type\':\'application/json\'};'
     +'const origSnap={};'
+    +'function layoutCheck(){'
+    +'  var bad=0,over=0;'
+    +'  document.querySelectorAll(\'td div\').forEach(function(d){if(d.scrollHeight>d.clientHeight+1)bad++;});'
+    +'  document.querySelectorAll(\'.a4p\').forEach(function(p){var c=p.firstElementChild;if(c&&c.scrollHeight>1063)over++;});'
+    +'  if(!bad&&!over)return;'
+    +'  var b=document.createElement(\'div\');'
+    +'  b.style.cssText=\'position:sticky;top:52px;z-index:9;background:#fdece5;color:#a03d16;border:1px solid #f0c4ae;border-radius:6px;padding:8px 14px;margin:8px 12px;font-size:13px;font-weight:700;text-align:center;\';'
+    +'  b.textContent=(bad?(\'글자가 잘린 칸 \'+bad+\'개 \'):\'\')+(over?(\'A4를 넘치는 장 \'+over+\'개\'):\'\')+\' — 이대로 인쇄하면 내용이 잘립니다\';'
+    +'  b.className=\'np\';b.id=\'layoutWarn\';'
+    +'  document.body.insertBefore(b,document.body.children[1]);'
+    +'}'
+    +'window.addEventListener(\'load\',function(){setTimeout(layoutCheck,300);});'
     +'function doPrint(){const t=document.title;document.title=\'\';setTimeout(()=>{window.print();setTimeout(()=>{document.title=t;},500);},50);}'
     +'async function saveJpg(){'
     +'  const pages=document.querySelectorAll(\'.a4p\');'
