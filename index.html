@@ -2524,9 +2524,12 @@ const VEGGIE_POOL = 30;   // 2가지 이상일 때 나눠 갖는 총량
 const VEGGIE_SOLO = 20;   // 1가지만 들어갔을 때
 const HEAVY_ITEMS = ['감자','고구마','단호박','밤단호박','땅콩호박','애호박','쥬키니호박','둥근호박',
                      '당근','무','비트','브로콜리','콜리플라워','노각','양배추','적채'];
+// 콩·두부는 이 메뉴의 단백질원이라 야채처럼 나눠 갖으면 안 된다.
+// 배분 대상에 넣었더니 재료가 늘수록 20g -> 10 -> 6 -> 5g까지 내려갔다.
+const BEANS = ['연두부','두부','렌틸콩','병아리콩'];
+const BEAN_G = 20;
 const LIGHT_ITEMS = ['팽이버섯','팽이','느타리버섯','느타리','새송이버섯','새송이','양송이','송고버섯','만가닥버섯',
                      '사과','배','아보카도',
-                     '연두부','두부','렌틸콩','병아리콩',
                      '퀴노아','파로','차조','오트밀','햄프시드'];
 
 // ── 장 단위로 세는 재료 ──────────────────────────────────────
@@ -2583,6 +2586,7 @@ function nutritionOf(menu, volume) {
     if (ONION.includes(name))        { rows.push({ name, grams: scale(ONION_G, volume) }); return; }
     if (LEAF_VEGGIES.includes(name)) { rows.push({ name, grams: scale(LEAF_G, volume) }); return; }
     if (SEAWEED.includes(name))      { rows.push({ name, grams: scale(SEAWEED_G, volume) }); return; }
+    if (BEANS.includes(name))        { rows.push({ name, grams: scale(BEAN_G, volume) }); return; }
     if (HEAVY_ITEMS.includes(name))  { pool.push({ name, w: 2 }); return; }
     if (LIGHT_ITEMS.includes(name))  { pool.push({ name, w: 1 }); return; }
     unknown.push(name);
@@ -3113,7 +3117,13 @@ function confirmHeavyMenus(heavy) {
 // ===== 저장 전 영양 검사 =====
 // 재료 개수·중복은 보는데 영양은 안 봤다. 중기에서 새우가 빠지면 단백질이 24%까지
 // 떨어지는데도 그대로 저장됐다. 단백질이 확 낮은 메뉴를 저장 전에 알려준다.
-const WEAK_PROTEIN_PCT = 40;   // 하루 권장량 대비. 보통 60~120%가 나온다.
+const WEAK_PROTEIN_PCT = 25;   // 하루 권장량 대비. 이 아래면 수치만으로도 경고.
+// 단백질 재료 목록 — 이 중 하나도 없으면 수치와 상관없이 알린다.
+function proteinSourcesIn(ingredients) {
+  const list = String(ingredients || '').split(',').map(x => x.trim()).filter(Boolean);
+  return list.filter(n =>
+    PROTEIN_G[n] || BEANS.includes(n) || COUNT_ITEMS[n] || SLICE_ITEMS[n]);
+}
 function findWeakMenus() {
   const out = [];
   (currentMenu || []).forEach(day => {
@@ -3126,11 +3136,15 @@ function findWeakMenus() {
         try { f = nutritionFacts(m, stage, 230); } catch (e) { return; }
         if (!f || !f.pct) return;
         const pct = Math.round(f.pct[2] * sv.grams / BASE_PACK_G);
-        if (pct >= WEAK_PROTEIN_PCT) return;
+        const shown = (stage === '중기') ? midStageMenu(m) : m;
+        const sources = proteinSourcesIn(shown.ingredients);
+        // 단백질 재료가 없거나, 있어도 수치가 아주 낮을 때만
+        if (sources.length && pct >= WEAK_PROTEIN_PCT) return;
         out.push({
           day: day.dayName || '', stage,
           typeName: typeLabel(m.type),
-          name: (stage === '중기' ? midStageMenu(m) : m).displayName || m.name || '',
+          name: shown.displayName || m.name || '',
+          noSource: sources.length === 0,
           pct,
           dropped: stage === '중기' ? bannedForMidStage(m.ingredients) : [],
         });
@@ -3147,15 +3161,18 @@ function confirmWeakMenus(weak) {
     wrap.className = 'dup-overlay';
     wrap.innerHTML =
       '<div class="dup-box">'
-      + '<h3>단백질이 낮은 메뉴가 있어요</h3>'
+      + '<h3>단백질을 확인해 주세요</h3>'
       + '<p class="dup-sub">보통은 하루 권장량의 60~120%가 나와요. '
-      + '아래 메뉴는 ' + WEAK_PROTEIN_PCT + '% 아래예요.</p>'
+      + '단백질 재료가 없거나 ' + WEAK_PROTEIN_PCT + '% 아래인 메뉴예요.</p>'
       + '<div class="dup-list">'
       + weak.map(x =>
           '<div class="heavy-item">'
           + '<div class="heavy-top">' + escapeDup(x.day) + '요일 · ' + escapeDup(x.stage) + ' · ' + escapeDup(x.typeName)
           + '<span class="heavy-flag warn">단백질 ' + x.pct + '%</span></div>'
           + '<div class="heavy-ing">' + escapeDup(x.name) + '</div>'
+          + (x.noSource
+              ? '<div class="heavy-note">고기·생선·두부·콩·계란·치즈가 하나도 없어요</div>'
+              : '')
           + (x.dropped.length
               ? '<div class="heavy-note">' + escapeDup(x.dropped.join('·')) + ' 를 빼면서 단백질이 빠졌어요</div>'
               : '')
