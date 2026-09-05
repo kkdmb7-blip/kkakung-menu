@@ -2444,6 +2444,20 @@ function bannedForMidStage(ingredients) {
 }
 
 // 화면·저장·인쇄에 쓸 "중기 주의" 문구. 사람이 직접 적은 메모가 있으면 같이 보여준다.
+// 중기 칸에 쓸 메뉴. 빠지는 재료를 재료 목록과 이름에서 모두 뺀다.
+// 인쇄·메뉴 이미지가 같은 결과를 내도록 전역에 둔다.
+function midStageMenu(menu) {
+  if (!menu) return menu;
+  const banned = bannedForMidStage(menu.ingredients);
+  if (!banned.length) return menu;
+  const keep = x => x && !banned.some(bb => x === bb || x.includes(bb));
+  const strip = t => String(t || '').split(/\s+/).filter(keep).join(' ').trim();
+  const ing = String(menu.ingredients || '').split(',').map(x => x.trim()).filter(keep).join(', ');
+  // 재료가 하나도 안 남으면 이름이 빈칸이 되어 "2. 죽"처럼 나간다. 그때는 원래 이름을 쓴다.
+  const nm = strip(menu.displayName || menu.name) || (menu.displayName || menu.name || '');
+  return Object.assign({}, menu, { ingredients: ing, displayName: nm, name: nm });
+}
+
 function midNoteOf(menu) {
   if (!menu) return '';
   const banned = bannedForMidStage(menu.ingredients);
@@ -2802,7 +2816,9 @@ function nutritionFacts(menu, stage, volume) {
   const items = n.rows.slice();
 
   // 밥 (단계별, 큰팩은 1.5배)
-  const rice = RICE_BY_STAGE[stage] * (isBig(volume) ? BIG_SCALE : 1);
+  // 단계 이름이 예상 밖이면 밥이 NaN이 되어 표 전체가 깨진다. 중기로 잡아둔다.
+  const riceBase = RICE_BY_STAGE[stage] || RICE_BY_STAGE['중기'];
+  const rice = riceBase * (isBig(volume) ? BIG_SCALE : 1);
   items.push({ name: '밥', grams: Math.round(rice) });
 
   // 치즈·계란처럼 장·개수로 세는 것도 무게로 환산해서 더한다
@@ -2821,7 +2837,7 @@ function nutritionFacts(menu, stage, volume) {
 
   const { sum, missing } = sumNutrients(items);
   const values = sum.map((v, i) => i === 0 ? Math.round(v) : Math.round(v * 10) / 10);
-  const dri = DRI_BY_STAGE[stage];
+  const dri = DRI_BY_STAGE[stage] || DRI_BY_STAGE['중기'];
   // 한 팩은 하루치가 아니라 한 끼라서, 보통 20~35% 정도가 나온다
   const pct = dri ? sum.map((v, i) => Math.round(v / dri[i] * 100)) : null;
   return { items, values, pct, missing };
@@ -3708,6 +3724,10 @@ async function downloadImages() {
         // 이유식 - 3개 메뉴에서 이름/재료 추출
         const menus = day.menus.map(m => ({
           name: (m.displayName || m.name).replace(' 죽/무른밥/진밥',''),
+          // 중기는 빠지는 재료가 있어 이름·재료가 달라진다. 그 줄에만 쓸 값을 따로 보낸다.
+          mid_name: (midStageMenu(m).displayName || midStageMenu(m).name || '').replace(' 죽/무른밥/진밥',''),
+          mid_ingred: midStageMenu(m).ingredients.split(',').map(x => x.trim()).filter(Boolean)
+            .reduce((acc, _, i, arr) => { if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', ')); return acc; }, []),
           // 인쇄물에 "중기: 새우 제외"가 빠져서 그냥 나가던 문제 — 이미지에도 함께 넘긴다
           mid_note: midNoteOf(m),
           ingred: m.ingredients.split(',').map(s => s.trim()).reduce((acc, _, i, arr) => {
@@ -3904,7 +3924,9 @@ function printMenuTable(withNut) {
     if (key === 'iron')    return pct >= 30 ? [2, '충분'] : pct >= 20 ? [1, '보통'] : [0, ''];
     return [-1, '분유·모유 몫'];
   }
-  const GRADE_COLOR = { '2': '#4f9636', '1': '#7fb069', '0': '#a8c79a', '-1': '#a9b7c6' };
+  // 색으로 판정까지 나타내면 "34%인데 가장 진한 색" 같은 모순이 생긴다.
+  // 길이는 수치, 색은 분류(영양소 / 분유·모유 몫)만 나타내고 판정은 결론 줄이 맡는다.
+  const GRADE_COLOR = { '2': '#7fb069', '1': '#7fb069', '0': '#7fb069', '-1': '#a9b7c6' };
 
   function nutBars(m, stage) {
     if (!withNut) return '';
@@ -3972,18 +3994,10 @@ function printMenuTable(withNut) {
     + '</div>'
     + '</div>';
 
-  // 중기 칸에는 빠지는 재료를 아예 넣지 않는다. 재료 목록과 메뉴 이름 둘 다.
+  // 재료를 다 빼면 buildTitle이 빈 문자열이 되어 "2. 죽"처럼 나간다. 그때는 원래 이름으로 되돌린다.
+  // 중기 칸에는 빠지는 재료를 아예 넣지 않는다(전역 midStageMenu와 같은 규칙).
   function stageMenu(m, stage) {
-    if (stage !== '중기' || !m) return m;
-    const banned = bannedForMidStage(m.ingredients);
-    if (!banned.length) return m;
-    const keep = x => x && !banned.some(bb => x === bb || x.includes(bb));
-    const strip = t => String(t || '').split(/\s+/).filter(keep).join(' ').trim();
-    return Object.assign({}, m, {
-      ingredients: String(m.ingredients || '').split(',').map(x => x.trim()).filter(keep).join(', '),
-      displayName: strip(m.displayName || m.name),
-      name: strip(m.name || m.displayName),
-    });
+    return (stage === '중기') ? midStageMenu(m) : m;
   }
 
   function buildTitle(m) {
@@ -4055,7 +4069,7 @@ function printMenuTable(withNut) {
         const m = stageMenu(m0, STAGES_ORDER[ri]);
         const raw = m.displayName||m.name||'';
         return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-          +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false"'+pe()+'>'+NUMS[ri][mi]+' '+buildTitle(m)+SFXARR[ri]+'</div>'
+          +'<div style="background:'+RC[ri]+';font-size:12px;font-weight:800;padding:5px 4px;text-align:center;border-bottom:1px solid #bbb;min-height:28px;display:flex;align-items:center;justify-content:center;" contenteditable="true" spellcheck="false"'+pe()+'>'+NUMS[ri][mi]+' '+(buildTitle(m)||buildTitle(m0))+SFXARR[ri]+'</div>'
           +'<div style="padding:4px;font-size:'+(withNut?ING_FS:11)+'px;line-height:'+(withNut?ING_LH:1.65)+';color:#333;text-align:center;height:'+ingH+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;" contenteditable="true" spellcheck="false"'+pe()+'>'+fmtI(m.ingredients||'',m.type||'',raw,withNut?ingPerLine:2)+'</div>'
 
           +nutBars(m, STAGES_ORDER[ri])
@@ -4325,6 +4339,10 @@ async function downloadPDF() {
       if (day.type === 'yushik') {
         const menus = day.menus.map(m => ({
           name: (m.displayName || m.name).replace(' 죽/무른밥/진밥',''),
+          // 중기는 빠지는 재료가 있어 이름·재료가 달라진다. 그 줄에만 쓸 값을 따로 보낸다.
+          mid_name: (midStageMenu(m).displayName || midStageMenu(m).name || '').replace(' 죽/무른밥/진밥',''),
+          mid_ingred: midStageMenu(m).ingredients.split(',').map(x => x.trim()).filter(Boolean)
+            .reduce((acc, _, i, arr) => { if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', ')); return acc; }, []),
           mid_note: midNoteOf(m),
           ingred: m.ingredients.split(',').map(s => s.trim()).reduce((acc, _, i, arr) => {
             if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', ')); return acc;

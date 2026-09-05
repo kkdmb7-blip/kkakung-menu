@@ -113,10 +113,15 @@ def make_yushik_image(data):
         for mi, menu in enumerate(menus):
             mx = MARGIN + COL1W + mi * COLMW
             draw.rectangle([mx, ry, mx+COLMW, ry+ROW_NAME_H], fill=mcolors[mi], outline=COL_BORDER, width=1)
-            tcx(draw, f"{nums[ri][mi]} {menu['name']} {suffix[ri]}", mx, ry+10, COLMW, f_mname, COL_DARK)
+            # 중기 줄은 빠지는 재료(새우)를 뺀 이름·재료를 쓴다.
+            # 예전엔 세 줄이 같은 값을 그려서, 아래에 "새우 제외"라고 적어놓고
+            # 정작 중기 줄에는 새우가 그대로 찍혀 나갔다.
+            nm  = (menu.get('mid_name') if ri == 0 and menu.get('mid_name') else menu['name'])
+            ing = (menu.get('mid_ingred') if ri == 0 and menu.get('mid_ingred') else menu['ingred'])
+            tcx(draw, f"{nums[ri][mi]} {nm} {suffix[ri]}", mx, ry+10, COLMW, f_mname, COL_DARK)
             draw.rectangle([mx, ry+ROW_NAME_H, mx+COLMW, ry+ROW_H], fill=COL_WHITE, outline=COL_BORDER, width=1)
             iy = ry + ROW_NAME_H + 12
-            for il in menu['ingred']:
+            for il in ing:
                 bb = draw.textbbox((0,0), il, font=f_ingred)
                 draw.text((mx+(COLMW-(bb[2]-bb[0]))//2, iy), il, fill=COL_MID, font=f_ingred)
                 iy += 17
