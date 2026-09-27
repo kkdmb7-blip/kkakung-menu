@@ -2509,7 +2509,8 @@ const PROTEIN_G = {
   '새우':     { small: 20, big: 30 },
 };
 // 잎채소 — 7g 고정. 아래 배분 계산에 끼지 않는다.
-const LEAF_VEGGIES = ['근대','적근대','청경채','로메인','케일','아욱','비타민채소','비타민','배추','호박잎','시금치'];
+const LEAF_VEGGIES = ['근대','적근대','청경채','로메인','케일','아욱','비타민채소','비타민','배추','호박잎','시금치',
+                      '알배추','섬초','포항초','세발나물','미나리','부추','깻잎'];
 const LEAF_G = 7;
 // 양파 — 매 메뉴에 들어가는 고정 재료
 const ONION = ['양파'];
@@ -2525,7 +2526,8 @@ const SEAWEED_G = 3;
 const VEGGIE_POOL = 30;   // 2가지 이상일 때 나눠 갖는 총량
 const VEGGIE_SOLO = 20;   // 1가지만 들어갔을 때
 const HEAVY_ITEMS = ['감자','고구마','단호박','밤단호박','땅콩호박','애호박','쥬키니호박','둥근호박',
-                     '당근','무','비트','브로콜리','콜리플라워','노각','양배추','적채'];
+                     '당근','무','비트','브로콜리','콜리플라워','노각','양배추','적채',
+                     '가지','콜라비','오이','토마토'];
 // 콩·두부는 이 메뉴의 단백질원이라 야채처럼 나눠 갖으면 안 된다.
 // 배분 대상에 넣었더니 재료가 늘수록 20g -> 10 -> 6 -> 5g까지 내려갔다.
 const BEANS = ['연두부','두부','렌틸콩','병아리콩','완두콩','호랑이콩','흰강낭콩','검은콩'];
@@ -2539,6 +2541,12 @@ const INGREDIENT_ALIAS = {
   '덩굴강낭콩': '흰강낭콩',
   '얼룩강낭콩': '호랑이콩',
   '달걀노른자': '계란노른자',
+  '어린배추': '배추',
+  '만가닥': '만가닥버섯',
+  '검은깨': '흑임자',
+  '팽이': '팽이버섯',
+  '느타리': '느타리버섯',
+  '새송이': '새송이버섯',
 };
 function canonIng(name) {
   const n = String(name == null ? '' : name).trim();
@@ -2546,9 +2554,15 @@ function canonIng(name) {
 }
 
 const BEAN_G = 20;
+
+// 깨·씨앗류 — 한 꼬집~1작은술 정도만 들어가서 채소 몫으로 나누면 너무 크게 잡힌다.
+// 미역과 같은 방식으로 작은 고정값을 준다.
+const SEEDS = ['참깨','흑임자','검은깨','들깨','햄프시드'];
+const SEED_G = 3;
 const LIGHT_ITEMS = ['팽이버섯','팽이','느타리버섯','느타리','새송이버섯','새송이','양송이','송고버섯','만가닥버섯',
                      '사과','배','아보카도',
-                     '퀴노아','파로','차조','오트밀','햄프시드'];
+                     '퀴노아','파로','차조','오트밀','햄프시드',
+                     '표고버섯','송고버섯','바나나','블루베리','찰기장','찰흑미','강황쌀','테프'];
 
 // ── 장 단위로 세는 재료 ──────────────────────────────────────
 // 치즈는 무게가 아니라 "몇 팩당 한 장". 단계마다 다르고 팩 크기와는 무관.
@@ -2607,6 +2621,7 @@ function nutritionOf(menu, volume) {
     if (LEAF_VEGGIES.includes(key)) { rows.push({ name, grams: scale(LEAF_G, volume) }); return; }
     if (SEAWEED.includes(key))      { rows.push({ name, grams: scale(SEAWEED_G, volume) }); return; }
     if (BEANS.includes(key))        { rows.push({ name, grams: scale(BEAN_G, volume) }); return; }
+    if (SEEDS.includes(key))        { rows.push({ name, grams: scale(SEED_G, volume) }); return; }
     if (HEAVY_ITEMS.includes(key))  { pool.push({ name, w: 2 }); return; }
     if (LIGHT_ITEMS.includes(key))  { pool.push({ name, w: 1 }); return; }
     unknown.push(name);
@@ -2637,6 +2652,7 @@ const ING_CATEGORIES = [
   { key: 'leaf',    label: '잎채소', hint: '7g · 시금치처럼 숨이 죽는 것' },
   { key: 'heavy',   label: '채소 (많이 넣는 편)', hint: '감자 · 당근 · 호박처럼 든든한 것' },
   { key: 'light',   label: '채소·곡물 (적게 넣는 편)', hint: '버섯 · 과일 · 잡곡' },
+  { key: 'seed',    label: '깨 · 씨앗', hint: '3g · 참깨 · 들깨 · 흑임자' },
   { key: 'seaweed', label: '해조류', hint: '3g · 미역 · 김 · 매생이' },
   { key: 'broth',   label: '육수 · 물 · 소금', hint: '중량을 안 세는 것' },
 ];
@@ -2657,13 +2673,15 @@ function applyIngredientWeights() {
     if (!n) return;
     // 이미 코드에 있는 재료는 건드리지 않는다 — 원래 값이 우선
     if (PROTEIN_G[n] || BROTH.includes(n) || ONION.includes(n) || LEAF_VEGGIES.includes(n)
-      || SEAWEED.includes(n) || BEANS.includes(n) || HEAVY_ITEMS.includes(n) || LIGHT_ITEMS.includes(n)) return;
+      || SEAWEED.includes(n) || BEANS.includes(n) || SEEDS.includes(n)
+      || HEAVY_ITEMS.includes(n) || LIGHT_ITEMS.includes(n)) return;
     switch (w.category) {
       case 'protein': PROTEIN_G[n] = { small: 20, big: 30 }; break;
       case 'bean':    BEANS.push(n); break;
       case 'leaf':    LEAF_VEGGIES.push(n); break;
       case 'heavy':   HEAVY_ITEMS.push(n); break;
       case 'light':   LIGHT_ITEMS.push(n); break;
+      case 'seed':    SEEDS.push(n); break;
       case 'seaweed': SEAWEED.push(n); break;
       case 'broth':   BROTH.push(n); break;
     }
@@ -2898,6 +2916,15 @@ const NUTRIENT_PER_100G = {
   '포항초': [35, 6.22, 3.56, 0.46, 106, 3.93, 20],   // 시금치_포항초_생것
   '표고버섯': [26, 8.03, 4.44, 0.32, 2, 0.37, 2],   // 표고버섯_갓_생것
   '한우': [272, 0, 33.09, 14.05, 8, 2.47, 38],   // 소고기_한우_양지_삶은것
+  '검은콩': [196, 11.39, 19.02, 8.75, 95, 2.57, 3],   // 콩(대두)_서리태_삶은것
+  '흑임자': [539, 27.42, 21.28, 42.3, 1316, 5.32, 1],   // 참깨_검정깨_볶은것
+  // 강황(울금)도 국내 DB에 없어 USDA 값을 썼다. 향신료라 몇 g을 넣을지는 정하기 나름이라
+  // 중량 분류는 일부러 비워뒀다 — 저장할 때 팝업이 떠서 직접 고르시게 된다.
+  '강황': [312, 67.1, 9.68, 3.25, 168, 55, 27],   // USDA 172231 Spices, turmeric, ground
+  '울금': [312, 67.1, 9.68, 3.25, 168, 55, 27],   // 강황과 같은 것
+  // 테프는 국내 DB(식약처·농진청)에 없어서 미국 농무부 표준데이터를 썼다.
+  // USDA SR Legacy #169747 'Teff, uncooked' — 다른 곡물과 마찬가지로 마른 상태 값이다.
+  '테프': [367, 73.13, 13.3, 2.38, 180, 7.63, 12],   // USDA 169747 (마른 상태)
   '햄프시드': [450, 31.7, 29.9, 28.3, 130, 13, 2],   // 삼씨(대마씨)_말린것
   '호랑이콩': [170, 31.9, 8.46, 0.9, 59, 2.89, 3],   // 강낭콩_삶은것
   '흰강낭콩': [170, 31.9, 8.46, 0.9, 59, 2.89, 3],   // 강낭콩_삶은것

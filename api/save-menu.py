@@ -12,7 +12,7 @@ MENU_PASSWORD = os.environ.get('MENU_PASSWORD', '')
 
 # 재료 분류 — index.html 의 ING_CATEGORIES 와 같은 값이어야 한다.
 # 모르는 값이 들어오면 저장하지 않는다(오타로 엉뚱한 중량이 잡히는 걸 막음).
-ALLOWED_ING_CATEGORIES = ('protein', 'bean', 'leaf', 'heavy', 'light', 'seaweed', 'broth')
+ALLOWED_ING_CATEGORIES = ('protein', 'bean', 'leaf', 'heavy', 'light', 'seed', 'seaweed', 'broth')
 
 def _sb(method, path, body=None):
     url = f"{SB_URL}/rest/v1/{path}"
