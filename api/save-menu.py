@@ -10,6 +10,10 @@ SB_SERVICE_KEY = os.environ.get('SB_SERVICE_KEY', '')
 MENU_PASSWORD = os.environ.get('MENU_PASSWORD', '')
 
 
+# 재료 분류 — index.html 의 ING_CATEGORIES 와 같은 값이어야 한다.
+# 모르는 값이 들어오면 저장하지 않는다(오타로 엉뚱한 중량이 잡히는 걸 막음).
+ALLOWED_ING_CATEGORIES = ('protein', 'bean', 'leaf', 'heavy', 'light', 'seaweed', 'broth')
+
 def _sb(method, path, body=None):
     url = f"{SB_URL}/rest/v1/{path}"
     data = json.dumps(body).encode() if body is not None else None
@@ -136,6 +140,19 @@ class handler(BaseHTTPRequestHandler):
                 # 직접 추가했던 반찬이면 추가목록에서 지우고, 원래 있던(하드코딩) 반찬이면 삭제목록에 기록
                 _sb('DELETE', f'kkakung_dish_pool_added?id=eq.{urllib.parse.quote(dish_id)}')
                 code, txt = _sb('POST', 'kkakung_dish_pool_removed', {'id': dish_id, 'type': dtype, 'name': name})
+                if code >= 300:
+                    return self._send(502, {'error': f'db {code}: {txt[:200]}'})
+                return self._send(200, {'ok': True})
+
+            if action == 'save_ingredient_weight':
+                # 앱에 없는 재료가 메뉴에 들어오면 중량이 안 잡혀 영양 계산에서 통째로 빠진다.
+                # 사장님이 저장할 때 분류를 골라주면 여기에 쌓아두고, 앱이 켜질 때 읽어서
+                # 코드에 박혀있는 재료 목록에 합쳐넣는다(반찬 풀과 같은 방식).
+                name = str(data.get('name', '')).strip()
+                category = str(data.get('category', '')).strip()
+                if not name or category not in ALLOWED_ING_CATEGORIES:
+                    return self._send(400, {'error': 'invalid ingredient weight'})
+                code, txt = _sb('POST', 'kkakung_ingredient_weights', {'name': name, 'category': category})
                 if code >= 300:
                     return self._send(502, {'error': f'db {code}: {txt[:200]}'})
                 return self._send(200, {'ok': True})

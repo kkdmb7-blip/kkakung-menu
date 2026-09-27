@@ -199,6 +199,8 @@ html, body { overflow-x: hidden; }
 .history-tag.week4 { background: #f0f8e8; color: #4a7a2a; }
 .history-tag.week5 { background: #e8f4f0; color: #2a6a5a; }
 /* 저장 전 중복 재료 알림 */
+.ing-cat { width: 100%; margin-top: 6px; padding: 8px 10px; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text); }
 .dup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9999;
   display: flex; align-items: center; justify-content: center; padding: 18px; }
 .dup-box { background: #fff; border-radius: 16px; padding: 20px; width: 100%; max-width: 420px;
@@ -2526,7 +2528,23 @@ const HEAVY_ITEMS = ['감자','고구마','단호박','밤단호박','땅콩호�
                      '당근','무','비트','브로콜리','콜리플라워','노각','양배추','적채'];
 // 콩·두부는 이 메뉴의 단백질원이라 야채처럼 나눠 갖으면 안 된다.
 // 배분 대상에 넣었더니 재료가 늘수록 20g -> 10 -> 6 -> 5g까지 내려갔다.
-const BEANS = ['연두부','두부','렌틸콩','병아리콩'];
+const BEANS = ['연두부','두부','렌틸콩','병아리콩','완두콩','호랑이콩','흰강낭콩','검은콩'];
+
+// 같은 재료를 다르게 적는 경우가 있어, 조회할 때만 대표 이름으로 바꿔 준다.
+// 화면·인쇄물에는 원래 적으신 이름이 그대로 나간다(바꿔치기하지 않는다).
+const INGREDIENT_ALIAS = {
+  '강낭콩': '흰강낭콩',
+  '울타리콩': '흰강낭콩',
+  '넝쿨강낭콩': '흰강낭콩',
+  '덩굴강낭콩': '흰강낭콩',
+  '얼룩강낭콩': '호랑이콩',
+  '달걀노른자': '계란노른자',
+};
+function canonIng(name) {
+  const n = String(name == null ? '' : name).trim();
+  return INGREDIENT_ALIAS[n] || n;
+}
+
 const BEAN_G = 20;
 const LIGHT_ITEMS = ['팽이버섯','팽이','느타리버섯','느타리','새송이버섯','새송이','양송이','송고버섯','만가닥버섯',
                      '사과','배','아보카도',
@@ -2574,21 +2592,23 @@ function nutritionOf(menu, volume) {
   const pool = [];   // 배분 대상
 
   names.forEach(name => {
-    if (isBroth(name)) { broth.push(name); return; }
-    const sl = sliceInfoOf(name);
+    // 분류는 대표 이름(key)으로 찾고, 표시는 적으신 이름(name) 그대로 쓴다
+    const key = canonIng(name);
+    if (isBroth(key)) { broth.push(name); return; }
+    const sl = sliceInfoOf(key);
     if (sl) { slices.push({ name, text: sliceText(sl, volume) }); return; }
-    const ci = countInfoOf(name);
+    const ci = countInfoOf(key);
     if (ci) { slices.push({ name, text: '한 팩에 ' + amountText(ci.per * (isBig(volume) ? BIG_SCALE : 1)) + ci.unit }); return; }
-    if (PROTEIN_G[name]) {
-      rows.push({ name, grams: isBig(volume) ? PROTEIN_G[name].big : PROTEIN_G[name].small });
+    if (PROTEIN_G[key]) {
+      rows.push({ name, grams: isBig(volume) ? PROTEIN_G[key].big : PROTEIN_G[key].small });
       return;
     }
-    if (ONION.includes(name))        { rows.push({ name, grams: scale(ONION_G, volume) }); return; }
-    if (LEAF_VEGGIES.includes(name)) { rows.push({ name, grams: scale(LEAF_G, volume) }); return; }
-    if (SEAWEED.includes(name))      { rows.push({ name, grams: scale(SEAWEED_G, volume) }); return; }
-    if (BEANS.includes(name))        { rows.push({ name, grams: scale(BEAN_G, volume) }); return; }
-    if (HEAVY_ITEMS.includes(name))  { pool.push({ name, w: 2 }); return; }
-    if (LIGHT_ITEMS.includes(name))  { pool.push({ name, w: 1 }); return; }
+    if (ONION.includes(key))        { rows.push({ name, grams: scale(ONION_G, volume) }); return; }
+    if (LEAF_VEGGIES.includes(key)) { rows.push({ name, grams: scale(LEAF_G, volume) }); return; }
+    if (SEAWEED.includes(key))      { rows.push({ name, grams: scale(SEAWEED_G, volume) }); return; }
+    if (BEANS.includes(key))        { rows.push({ name, grams: scale(BEAN_G, volume) }); return; }
+    if (HEAVY_ITEMS.includes(key))  { pool.push({ name, w: 2 }); return; }
+    if (LIGHT_ITEMS.includes(key))  { pool.push({ name, w: 1 }); return; }
     unknown.push(name);
   });
 
@@ -2605,6 +2625,111 @@ function nutritionOf(menu, volume) {
   return { rows, unknown, broth, slices, total: rows.reduce((a, r) => a + r.grams, 0) };
 }
 
+// ===== 처음 보는 재료 등록 =====
+// 앱에 없는 재료를 적으면 중량이 안 잡혀서 영양 계산에서 통째로 빠진다.
+// 지금까지는 성분표를 열어봐야만 알 수 있었는데(=거의 못 봄), 저장할 때 물어보고
+// 분류를 고르면 서버에 쌓아두었다가 다음부터 자동으로 반영되게 한다.
+// 코드에 박혀있는 재료 목록 위에 서버 목록을 얹는 방식으로, 반찬 풀과 완전히 같다.
+// const 배열이라도 push 로 내용은 바꿀 수 있어서 이 배열을 쓰는 다른 코드는 안 건드려도 된다.
+const ING_CATEGORIES = [
+  { key: 'protein', label: '고기 · 생선', hint: '작은팩 20g · 큰팩 30g' },
+  { key: 'bean',    label: '콩 · 두부', hint: '20g 고정' },
+  { key: 'leaf',    label: '잎채소', hint: '7g · 시금치처럼 숨이 죽는 것' },
+  { key: 'heavy',   label: '채소 (많이 넣는 편)', hint: '감자 · 당근 · 호박처럼 든든한 것' },
+  { key: 'light',   label: '채소·곡물 (적게 넣는 편)', hint: '버섯 · 과일 · 잡곡' },
+  { key: 'seaweed', label: '해조류', hint: '3g · 미역 · 김 · 매생이' },
+  { key: 'broth',   label: '육수 · 물 · 소금', hint: '중량을 안 세는 것' },
+];
+let ingredientWeightsCache = [];
+
+async function loadIngredientWeights() {
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/kkakung_ingredient_weights?select=name,category`, { headers: SB_HEADERS });
+    if (!res.ok) return;
+    ingredientWeightsCache = await res.json();
+    applyIngredientWeights();
+  } catch (e) { console.warn('재료 중량 목록 로드 실패', e); }
+}
+
+function applyIngredientWeights() {
+  ingredientWeightsCache.forEach(function (w) {
+    const n = String(w && w.name || '').trim();
+    if (!n) return;
+    // 이미 코드에 있는 재료는 건드리지 않는다 — 원래 값이 우선
+    if (PROTEIN_G[n] || BROTH.includes(n) || ONION.includes(n) || LEAF_VEGGIES.includes(n)
+      || SEAWEED.includes(n) || BEANS.includes(n) || HEAVY_ITEMS.includes(n) || LIGHT_ITEMS.includes(n)) return;
+    switch (w.category) {
+      case 'protein': PROTEIN_G[n] = { small: 20, big: 30 }; break;
+      case 'bean':    BEANS.push(n); break;
+      case 'leaf':    LEAF_VEGGIES.push(n); break;
+      case 'heavy':   HEAVY_ITEMS.push(n); break;
+      case 'light':   LIGHT_ITEMS.push(n); break;
+      case 'seaweed': SEAWEED.push(n); break;
+      case 'broth':   BROTH.push(n); break;
+    }
+  });
+}
+
+// 저장 직전에 물어본다. 고른 분류는 서버에 올려 다음부터 자동 반영.
+// 반환값: 저장을 계속할지 여부
+async function confirmUnknownIngredients(unknowns) {
+  const picked = await askUnknownIngredients(unknowns);
+  if (picked === null) return false;   // 수정하러 가기
+  if (!picked.length) return true;     // 이번엔 그냥 저장
+  let okCount = 0, failMsg = '';
+  for (const p of picked) {
+    const r = await serverWrite({ action: 'save_ingredient_weight', name: p.name, category: p.category });
+    if (r.ok) { ingredientWeightsCache.push(p); okCount++; }
+    else failMsg = r.error || '';
+  }
+  applyIngredientWeights();
+  if (okCount) {
+    renderMenu();
+    showToast('✅ 재료 ' + okCount + '가지를 등록했어요');
+  }
+  if (failMsg) showToast('⚠️ 재료 등록 실패: ' + failMsg);
+  return true;
+}
+
+// 팝업. 고른 목록을 돌려주고, 수정하러 가면 null.
+function askUnknownIngredients(unknowns) {
+  return new Promise(function (resolve) {
+    const wrap = document.createElement('div');
+    wrap.className = 'dup-overlay';
+    wrap.innerHTML =
+      '<div class="dup-box">'
+      + '<h3>처음 보는 재료가 있어요</h3>'
+      + '<p class="dup-sub">아래 재료는 앱에 등록돼 있지 않아서 <b>중량이 안 잡히고 영양 계산에서 빠져요.</b> '
+      + '어느 쪽인지 골라주시면 다음부터 자동으로 들어갑니다.</p>'
+      + '<div class="dup-list">'
+      + unknowns.map(function (n) {
+        return '<div class="heavy-item">'
+          + '<div class="heavy-ing">' + escapeDup(n) + '</div>'
+          + '<select class="ing-cat" data-name="' + escapeDup(n) + '">'
+          + '<option value="">— 나중에 정할게요 —</option>'
+          + ING_CATEGORIES.map(function (c) {
+            return '<option value="' + c.key + '">' + escapeDup(c.label) + ' — ' + escapeDup(c.hint) + '</option>';
+          }).join('')
+          + '</select>'
+          + '</div>';
+      }).join('')
+      + '</div>'
+      + '<div class="dup-btns">'
+      + '<button type="button" class="dup-fix">수정하기</button>'
+      + '<button type="button" class="dup-go">저장하기</button>'
+      + '</div></div>';
+    const done = function (v) { wrap.remove(); resolve(v); };
+    wrap.querySelector('.dup-fix').onclick = function () { done(null); };
+    wrap.querySelector('.dup-go').onclick = function () {
+      const out = [].slice.call(wrap.querySelectorAll('.ing-cat'))
+        .filter(function (el) { return el.value; })
+        .map(function (el) { return { name: el.dataset.name, category: el.value }; });
+      done(out);
+    };
+    wrap.onclick = function (e) { if (e.target === wrap) done(null); };
+    document.body.appendChild(wrap);
+  });
+}
 function unknownIngredients() {
   const set = new Set();
   (currentMenu || []).forEach(day => {
@@ -2702,75 +2827,75 @@ const NUTRIENT_PER_100G = {
   '퀴노아': [363, 72.62, 9.56, 3.26, 63, 3.54, 0],   // 퀴노아_쪄서 말린것 (마른 상태)
   '오트밀': [388, 68.03, 9.88, 8.84, 52, 5.3, 3],   // 귀리_겉귀리_도정_생것 (마른 상태)
   '가자미': [143, 0.3, 22.1, 3.7, 40, 0.7, 230],   // 가자미류_가자미_육_생것_대표_평균
-  '가지': [19, 4.4, 1, 0.1, 17, 0.32, 1],   // 가지_데친것
-  '감자': [75, 17.28, 1.94, 0.05, 6, 0.42, 0],   // 감자_수미_찐것
+  '가지': [19, 4.36, 1.13, 0.03, 16, 0.26, 0],   // 가지_생것
+  '감자': [70, 16.07, 1.93, 0.03, 6, 0.4, 1],   // 감자_수미_생것
   '강황쌀': [146, 31.71, 2.65, 0.33, 2, 0.02, 0],   // 멥쌀밥_백미
   '계란노른자': [379, 1.37, 16.46, 32.16, 157, 7.5, 47],   // 달걀_난황_삶은것
-  '고구마': [163, 39.41, 1.08, 0.15, 20, 0.44, 6],   // 고구마_찐것
-  '근대': [20, 3.95, 1.79, 0.2, 61, 0.46, 138],   // 근대_데친것
-  '깻잎': [37, 6.07, 4.37, 0.55, 265, 2.42, 1],   // 들깨_잎_찐것
+  '고구마': [147, 35.52, 1.09, 0.15, 18, 0.48, 8],   // 고구마_생것
+  '근대': [18, 3.28, 1.78, 0.2, 49, 0.53, 173],   // 근대_생것
+  '깻잎': [47, 8.89, 4.46, 0.5, 296, 1.91, 1],   // 들깨_잎_생것
   '노각': [13, 2.81, 1.15, 0.03, 34, 0.18, 2],   // 오이_취청_생것
   '느타리': [21, 6.51, 3.26, 0.23, 2, 0.68, 3],   // 느타리버섯_데친것
-  '느타리버섯': [21, 6.51, 3.26, 0.23, 2, 0.68, 3],   // 느타리버섯_데친것
-  '단호박': [66, 15.45, 1.72, 0.84, 15, 0.43, 0],   // 호박_단호박_찐것
+  '느타리버섯': [15, 4.7, 2.6, 0.14, null, 0.78, 2],   // 느타리버섯_생것
+  '단호박': [57, 13.63, 1.19, 0.65, 12, 0.36, 0],   // 호박_단호박_생것
   '달걀노른자': [379, 1.37, 16.46, 32.16, 157, 7.5, 47],   // 달걀_난황_삶은것
   '닭': [127, 0, 28.09, 0.93, 4, 0.34, 40],   // 닭고기_가슴(껍질 제거)_삶은것
   '닭가슴살': [127, 0, 28.09, 0.93, 4, 0.34, 40],   // 닭고기_가슴(껍질 제거)_삶은것
-  '당근': [31, 7.01, 0.97, 0.13, 25, 0.24, 16],   // 당근_뿌리_데친것
+  '당근': [31, 7.03, 1.02, 0.13, 24, 0.28, 23],   // 당근_뿌리_생것
   '대구살': [84, 0, 18.6, 0.9, 15, 0.5, 100],   // 대구류_대구_육_찐것_수입_평균
-  '둥근호박': [21, 4.88, 1.05, 0.1, 18, 0.24, 0],   // 호박_애호박_데친것
+  '둥근호박': [22, 5.14, 1.07, 0.09, 15, 0.23, 0],   // 호박_애호박_생것
   '들깨': [530, 35.53, 23.59, 36.23, 416, 7.5, 5],   // 들깨_볶은것
-  '땅콩호박': [66, 15.45, 1.72, 0.84, 15, 0.43, 0],   // 호박_단호박_찐것
+  '땅콩호박': [57, 13.63, 1.19, 0.65, 12, 0.36, 0],   // 호박_단호박_생것
   '렌틸콩': [150, 25.39, 9.79, 0.88, 12, 2.12, 1],   // 렌즈콩(렌틸콩)_수입산(인도산)_빨간색_말린것을 삶은 것
   '로메인': [17, 2.72, 2.28, 0.22, 143, 1.08, 30],   // 상추_로메인_청상추_생것
-  '만가닥버섯': [19, 6.07, 2.73, 0.35, 2, 0.38, 2],   // 만가닥버섯_데친것
+  '만가닥버섯': [19, 6.34, 2.5, 0.34, 1, 0.51, 2],   // 만가닥버섯_생것
   '매생이': [43, 8.19, 3.88, 3.29, 91, 18.3, 104],   // 매생이_줄기_생것_대표_평균
-  '무': [33, 7.51, 1.28, 0.09, 35, 0.31, 47],   // 순무_뿌리_데친것
-  '미나리': [20, 3.88, 1.82, 0.22, 50, 0.5, 18],   // 미나리_물미나리_데친것
+  '무': [21, 4.72, 0.77, 0.15, 22, 0.16, 13],   // 무_조선무_뿌리_생것
+  '미나리': [18, 3.5, 1.69, 0.22, 46, 0.58, 24],   // 미나리_물미나리_생것
   '미역': [17, 5.11, 2.51, 0.16, null, null, null],   // 미역류_미역_전체_생것_여수_평균
   '바나나': [77, 20, 1.11, 0.2, 6, 0.25, 0],   // 바나나_생것
-  '밤단호박': [66, 15.45, 1.72, 0.84, 15, 0.43, 0],   // 호박_단호박_찐것
+  '밤단호박': [57, 13.63, 1.19, 0.65, 12, 0.36, 0],   // 호박_단호박_생것
   '밥': [146, 31.71, 2.65, 0.33, 2, 0.02, 0],   // 멥쌀밥_백미
   '배': [45, 12.24, 0.29, 0.04, 2, 0.06, 0],   // 배_생것
-  '배추': [22, 4.5, 1.83, 0.22, 98, 0.52, 23],   // 배추_봄동_데친것
+  '배추': [15, 3.32, 1.25, 0.06, 52, 0.36, 8],   // 배추_생것
   '병아리콩': [183, 29.24, 9.18, 3.2, 45, 2.58, 0],   // 병아리콩_수입산(인도산)_말린것을 삶은 것
   '부추': [41, 8.8, 3.5, 0.1, 14, 0.3, 15],   // 부추_산부추_생것
-  '브로콜리': [28, 5.34, 2.8, 0.31, 37, 0.68, 4],   // 브로콜리_데친것
+  '브로콜리': [32, 6.32, 3.08, 0.2, 39, 0.8, 3],   // 브로콜리_생것
   '블루베리': [48, 12.57, 0.55, 0.09, 9, 0.23, 0],   // 블루베리_생것
   '비타민': [14, 2, 2.1, 0.2, 91, 2.7, 17],   // 비타민채(다채)_생것
   '비타민채소': [14, 2, 2.1, 0.2, 91, 2.7, 17],   // 비타민채(다채)_생것
-  '비트': [23, 4.66, 1.28, 0.13, 8, 0.28, 69],   // 비트_뿌리_데친것
+  '비트': [26, 5.26, 1.56, 0.14, 9, 0.29, 83],   // 비트_뿌리_생것
   '사과': [57, 14.11, 0.2, 0.66, 3, 0.11, 0],   // 사과_생것
   '새송이': [21, 6.64, 3.24, 0.27, 0, 0.28, 4],   // 큰느타리버섯(새송이버섯)_데친것
-  '새송이버섯': [21, 6.64, 3.24, 0.27, 0, 0.28, 4],   // 큰느타리버섯(새송이버섯)_데친것
+  '새송이버섯': [20, 6.56, 2.91, 0.19, 1, 0.35, 5],   // 큰느타리버섯(새송이버섯)_생것
   '새우': [71, 0.1, 15.1, 0.7, 87, 1.1, null],   // 새우류_보리새우_육_생것_창원_11월
-  '섬초': [32, 4.8, 4.12, 0.55, 122, 3.45, 15],   // 시금치_섬초_데친것
-  '세발나물': [23, 4.2, 2.29, 0.28, 103, 0.82, 249],   // 세발나물_데친것
+  '섬초': [24, 3.76, 3.11, 0.34, 59, 2.06, 16],   // 시금치_섬초_생것
+  '세발나물': [18, 3.59, 1.61, 0.14, 51, 0.83, 321],   // 세발나물_생것
   '송고버섯': [26, 8.03, 4.44, 0.32, 2, 0.37, 2],   // 표고버섯_갓_생것
-  '시금치': [34, 5.26, 4.02, 0.61, 86, 1.79, 29],   // 시금치_데친것
+  '시금치': [29, 4.86, 3.35, 0.39, 66, 2.49, 23],   // 시금치_생것
   '아보카도': [160, 8.53, 2, 14.66, 12, 0.55, 7],   // 아보카도_생것
-  '아욱': [31, 5.2, 3.52, 0.49, 178, 0.68, 17],   // 아욱_데친것
+  '아욱': [37, 7.64, 3.08, 0.31, 267, 0.57, 37],   // 아욱_생것
   '알배추': [15, 3.32, 1.25, 0.06, 52, 0.36, 8],   // 배추_생것
-  '애호박': [21, 4.88, 1.05, 0.1, 18, 0.24, 0],   // 호박_애호박_데친것
-  '양배추': [32, 7.56, 1.71, 0.12, 43, 0.31, 7],   // 양배추_데친것
-  '양송이': [15, 3.63, 3.15, 0.26, 2, 1.12, 5],   // 양송이버섯_데친것
+  '애호박': [22, 5.14, 1.07, 0.09, 15, 0.23, 0],   // 호박_애호박_생것
+  '양배추': [29, 6.98, 1.36, 0.12, 45, 0.22, 9],   // 양배추_생것
+  '양송이': [15, 3.89, 3.12, 0.23, 2, 0.62, 5],   // 양송이버섯_생것
   '양파': [29, 6.52, 0.96, 0.17, 16, 0.2, 2],   // 양파_생것
   '연어': [273, 0, 18.58, 20.71, 4, 0.14, 33],   // 연어류_연어_육_생것_수입(노르웨이)_평균
   '오이': [13, 2.81, 1.15, 0.03, 34, 0.18, 2],   // 오이_취청_생것
   '완두콩': [122, 20.78, 7.27, 1.1, 35, 2.03, 2],   // 완두_삶은것
-  '적근대': [20, 3.95, 1.79, 0.2, 61, 0.46, 138],   // 근대_데친것
+  '적근대': [18, 3.28, 1.78, 0.2, 49, 0.53, 173],   // 근대_생것
   '적채': [35, 7.69, 2.23, 0.21, 30, 0.47, 6],   // 양배추_적양배추_생것
-  '쥬키니호박': [21, 4.88, 1.05, 0.1, 18, 0.24, 0],   // 호박_애호박_데친것
+  '쥬키니호박': [22, 5.14, 1.07, 0.09, 15, 0.23, 0],   // 호박_애호박_생것
   '참깨': [557, 21.83, 25.96, 45.11, 854, 6.39, 2],   // 참깨_흰깨_볶은것
-  '청경채': [11, 1.81, 1.6, 0.13, 82, 0.37, 15],   // 청경채_데친것
+  '청경채': [10, 1.64, 1.41, 0.09, 87, 0.38, 17],   // 청경채_생것
   '케일': [26, 4.61, 3.11, 0.24, 328, 0.81, 47],   // 케일_생것
   '콜라비': [22, 5.16, 1.16, 0.05, 42, 0.27, 7],   // 콜라비_생것
-  '콜리플라워': [26, 4.62, 2.4, 0.47, 15, 0.43, 13],   // 꽃양배추(콜리플라워)_데친것
+  '콜리플라워': [27, 4.84, 2.17, 0.48, 14, 0.33, 13],   // 꽃양배추(콜리플라워)_생것
   '토마토': [19, 4.26, 1.03, 0.18, 9, 0.19, 2],   // 토마토_생것
   '파래김': [12, 2.95, 2.18, 0.15, 55, 4.1, 122],   // 파래류_파래_줄기_생것_대표_평균
   '팽이': [21, 6.71, 2.6, 0.46, 1, 0.81, 2],   // 팽이버섯_데친것
-  '팽이버섯': [21, 6.71, 2.6, 0.46, 1, 0.81, 2],   // 팽이버섯_데친것
-  '포항초': [34, 5.19, 4.19, 0.63, 90, 1.54, 57],   // 시금치_포항초_데친것
+  '팽이버섯': [21, 7.08, 2.48, 0.52, 1, 1.1, 3],   // 팽이버섯_생것
+  '포항초': [35, 6.22, 3.56, 0.46, 106, 3.93, 20],   // 시금치_포항초_생것
   '표고버섯': [26, 8.03, 4.44, 0.32, 2, 0.37, 2],   // 표고버섯_갓_생것
   '한우': [272, 0, 33.09, 14.05, 8, 2.47, 38],   // 소고기_한우_양지_삶은것
   '햄프시드': [450, 31.7, 29.9, 28.3, 130, 13, 2],   // 삼씨(대마씨)_말린것
@@ -2807,7 +2932,7 @@ function allergensOf(ingredients, all) {
   const out = [];
   String(ingredients || '').split(',').forEach(raw => {
     const n = raw.trim();
-    const a = ALLERGEN_OF[n];
+    const a = ALLERGEN_OF[canonIng(n)];
     if (!a) return;
     if (!all && ALLERGEN_OBVIOUS.includes(a)) return;
     if (!out.includes(a)) out.push(a);
@@ -2851,7 +2976,7 @@ function sumNutrients(items) {
   // 0으로 치면 "철분 0mg"이라고 단언하는 셈이 된다. 빠진 항목은 따로 모아 화면에 알린다.
   const partial = [];
   items.forEach(it => {
-    const per = NUTRIENT_PER_100G[it.name];
+    const per = NUTRIENT_PER_100G[canonIng(it.name)];
     if (!per) { missing.push(it.name); return; }
     for (let i = 0; i < 7; i++) {
       if (per[i] === null || per[i] === undefined) {
@@ -3146,8 +3271,10 @@ const WEAK_PROTEIN_PCT = 25;   // 하루 권장량 대비. 이 아래면 수치�
 // 단백질 재료 목록 — 이 중 하나도 없으면 수치와 상관없이 알린다.
 function proteinSourcesIn(ingredients) {
   const list = String(ingredients || '').split(',').map(x => x.trim()).filter(Boolean);
-  return list.filter(n =>
-    PROTEIN_G[n] || BEANS.includes(n) || COUNT_ITEMS[n] || SLICE_ITEMS[n]);
+  return list.filter(raw => {
+    const n = canonIng(raw);
+    return PROTEIN_G[n] || BEANS.includes(n) || COUNT_ITEMS[n] || SLICE_ITEMS[n];
+  });
 }
 function findWeakMenus() {
   const out = [];
@@ -3292,6 +3419,14 @@ async function saveMenu() {
   if (!currentMenu) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
   const weekKey = document.getElementById('weekStart').value;
 
+
+  // 처음 보는 재료부터 확인한다. 미등록 재료는 중량이 0이라 단백질 %가 실제보다 낮게
+  // 나오는데, 그 상태로 아래 단백질 검사를 돌리면 멀쩡한 메뉴를 고치라고 하게 된다.
+  const unknowns = unknownIngredients();
+  if (unknowns.length > 0) {
+    const goOn = await confirmUnknownIngredients(unknowns);
+    if (!goOn) { showToast('재료를 고친 뒤 다시 저장해주세요'); return; }
+  }
 
   // 재료 개수·단백질 겹침을 먼저 본다 — 구성 자체가 이상하면 중복보다 이게 먼저다
   const heavy = findHeavyMenus();
@@ -4634,6 +4769,7 @@ restoreCurrent();
 // restoreCurrent가 weekStart를 바꿀 수 있으므로 그 값을 사용
 (async function() {
   await applyDishOverrides(); // 반찬 추가/삭제가 메뉴 생성보다 먼저 반영되게
+  await loadIngredientWeights(); // 직접 등록한 재료 중량도 메뉴 생성 전에 반영
   await selectWeekBtn(document.getElementById('weekStart').value);
   // 모달 편집 중 끊겼던 경우 재오픈
   restoreModalDraft();
