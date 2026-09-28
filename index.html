@@ -4802,6 +4802,12 @@ restoreCurrent();
   restoreModalDraft();
 })();
 
+// 브라우저가 알아서 띄우는 "앱 설치 / 홈 화면에 추가" 배너를 막는다.
+// manifest + 서비스워커가 있으면 크롬이 "설치 가능한 앱"으로 보고 스스로 배너를 띄우는데,
+// 이건 매장에서 브라우저로 쓰는 도구라 계속 뜨면 작업에 방해만 된다.
+// (서비스워커 자체는 그대로 둔다 — 아이콘·이름 설정은 유지)
+window.addEventListener('beforeinstallprompt', (e) => e.preventDefault());
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 }
