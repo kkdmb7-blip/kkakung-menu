@@ -4692,7 +4692,16 @@ function printMenuTable(withNut) {
     //
     // 이제 서버에 쓴다. 쓰기는 RLS 로 막혀 있어 /api/save-menu(service_role)
     // 를 거쳐야 하고, 거기엔 비밀번호가 필요하다. 이 창은 앱과 같은 출처라
-    // 앱이 저장해둔 비밀번호를 그대로 읽어 쓸 수 있다.
+    // (window.open('','_blank') 는 연 쪽의 출처를 물려받는다) 앱이 저장해둔
+    // 비밀번호를 그대로 읽어 쓸 수 있다.
+    //
+    // 그런데 읽기만 했다. menu_pw 는 앱에서 메뉴를 저장할 때(getMenuPassword)
+    // 비로소 생기는 값이라, 메뉴를 저장한 적이 없는 기기에서는 비어 있다.
+    // 그러면 '앱에서 먼저 저장해주세요' 만 뜨고 길이 막혔다 — 원산지 한 줄
+    // 고치려고 메뉴를 저장하고 와야 했다. 여기서 바로 물어본다. 저장 위치도
+    // 앱과 같은 menu_pw 라, 한 번 넣으면 앱에서도 다시 안 묻는다.
+    // 틀린 비밀번호는 401 이 오므로 지워서 다음 번에 다시 묻게 한다(앱의
+    // serverWrite 와 같은 처리).
     +'async function savePerma(){'
     +'  saveEdits();'
     +'  const btn=document.getElementById(\'permaBtn\');'
@@ -4704,15 +4713,18 @@ function printMenuTable(withNut) {
     +'  });'
     +'  localStorage.setItem(\'kkakung_print_perma\',JSON.stringify(perma));'
     +'  if(!n){btn.textContent=\'바뀐 게 없어요\';setTimeout(()=>{btn.textContent=\'🔒 영구 추가\';},2000);return;}'
-    +'  const pw=localStorage.getItem(\'menu_pw\');'
-    +'  if(!pw){btn.textContent=\'앱에서 먼저 저장해주세요\';setTimeout(()=>{btn.textContent=\'🔒 영구 추가\';},3000);return;}'
+    +'  let pw=localStorage.getItem(\'menu_pw\');'
+    +'  if(!pw){pw=prompt(\'메뉴 편집 비밀번호 (이 기기에 저장되어 다음부터는 안 물어봅니다)\');'
+    +'    if(pw)localStorage.setItem(\'menu_pw\',pw);}'
+    +'  if(!pw){btn.textContent=\'비밀번호가 필요해요\';setTimeout(()=>{btn.textContent=\'🔒 영구 추가\';},3000);return;}'
     +'  btn.textContent=\'서버에 올리는 중…\';btn.disabled=true;'
     +'  try{'
     +'    const res=await fetch(\'/api/save-menu\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},'
     +'      body:JSON.stringify({action:\'upsert\',password:pw,row:{id:\'__perma__\',yusik:{perma:perma}}})});'
     +'    const d=await res.json().catch(()=>({}));'
     +'    if(res.ok&&d.ok){btn.textContent=\'✅ 영구 저장됨 (\'+n+\'곳)\';}'
-    +'    else{btn.textContent=\'!! 실패: \'+(d.error||(\'HTTP \'+res.status));}'
+    +'    else{if(res.status===401)localStorage.removeItem(\'menu_pw\');'
+    +'      btn.textContent=\'!! 실패: \'+(d.error||(\'HTTP \'+res.status));}'
     +'  }catch(e){btn.textContent=\'!! 못 올렸어요: \'+e.message;}'
     +'  btn.disabled=false;setTimeout(()=>{btn.textContent=\'🔒 영구 추가\';},4000);'
     +'}'
