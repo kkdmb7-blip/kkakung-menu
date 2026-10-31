@@ -4218,10 +4218,23 @@ const FORG_ORIGIN = {'파로':'이탈리아','아보카도':'페루','아마란�
  * '영구 추가' 로 남기면 된다 — 그 길이 이제 실제로 동작한다.
  */
 const ORI_MAX = 3;
+
+/**
+ * 원산지줄에만 안 적는 재료.
+ *
+ * 원당은 조림 메뉴(우엉조림·연근조림·고구마조림·장조림…)에 실제로 들어가는
+ * 재료라서 재료줄에는 그대로 적는다. 원산지 표기 대상만 아니다.
+ * 그래서 HIDEING 에는 넣지 않는다 — 거긴 재료줄에서도 지우는 목록이다.
+ *
+ * 상위 세 개를 세기(ORI_MAX) 전에 빼므로 자리를 잡아먹지도 않는다.
+ * '우엉, 원당' 이면 원산지줄은 '우엉국내산' 하나로 끝난다.
+ */
+const NO_ORIGIN = ['원당'];
+
 function pickOriAll(list) {
   const res = [], seen = new Set();
   (list || []).forEach(s => {
-    if (res.length >= ORI_MAX || seen.has(s)) return;
+    if (res.length >= ORI_MAX || seen.has(s) || NO_ORIGIN.includes(s)) return;
     seen.add(s);
     res.push(s + (FORG_ORIGIN[s] || '국내산'));
   });
