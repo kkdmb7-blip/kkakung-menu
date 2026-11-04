@@ -994,6 +994,31 @@ function pickExcluding(pool, exclude) {
   return filtered[Math.floor(Math.random() * filtered.length)];
 }
 
+/**
+ * 꼭 피해야 하는 것(hard)과 되면 피하는 것(soft)을 나눠서 고른다.
+ *
+ * 서브재료 후보는 조합마다 3~4개뿐인데 유식은 한 주에 네 번 나온다. 주간 중복까지
+ * 금지하면 후보가 바닥나는 주가 생기고, 그때 pickExcluding 의 "부득이하게" 분기는
+ * 풀 전체에서 아무거나 집어서 hard 조건(같은 날 중복)까지 깨버린다.
+ * 그래서 soft 를 먼저 포기하고 hard 는 끝까지 지킨다 — soft 가 비면 지금과 똑같이 동작하므로
+ * 이 함수로 바꿔서 나빠질 수는 없다.
+ */
+function pickTiered(pool, hard, soft) {
+  const strict = pool.filter(x => !hard.includes(x) && !soft.includes(x));
+  if (strict.length) return strict[Math.floor(Math.random() * strict.length)];
+  return pickExcluding(pool, hard);
+}
+
+/**
+ * usedThisWeek 의 서브재료 칸. 없으면 만들어 돌려준다.
+ *
+ * usedThisWeek 를 만드는 곳이 두 군데(generateMenu 전체 생성 · regenDay 하루 재생성)라
+ * 한쪽만 고치면 그쪽에서 조용히 안 걸린다. 여기서 늦게 만들어 양쪽을 같게 둔다.
+ */
+function weekSubs(used, key) {
+  return (used[key + 'Sub'] = used[key + 'Sub'] || []);
+}
+
 // 반찬 5개를 고를 때 같은 재료(당근이든 다른 채소든 전부 해당)가 너무 많은 반찬에 몰리지 않게 함.
 // 재료 하나당 최대 등장 횟수(기본 3/5)를 넘기는 반찬은 건너뜀 — 예전엔 그냥 섞어서 앞 5개를
 // 잘랐는데, 재료 풀에서 당근처럼 여러 반찬에 공통으로 들어가는 재료 비중이 높아서 5개 중 4~5개에
@@ -1041,7 +1066,12 @@ function buildYushikMenu(dayIndex, usedThisWeek, prevWeek) {
   usedToday.add(hwMain);
   const hwSubs = PAIRINGS.hanwoo[hwMain] || ['당근','쥬키니호박','감자'];
   const hwUsedSubs = usedSubsFor(prevWeek.hanwoo, hwMain);
-  const hwSub = pickExcluding(hwSubs, ['양파', ...hwUsedSubs, ...usedToday]);
+  // 주간 중복 방지는 주재료만 걸려 있었고 서브재료는 빠져 있었다 — 목요일 닭 감자,
+  // 금요일 닭 감자가 그래서 나왔다. 주재료가 다르면 prevWeek 콤보 조건도 안 걸리고,
+  // usedToday 는 하루마다 비워지니 서로를 전혀 모르는 상태였다.
+  const hwWeek = weekSubs(usedThisWeek, 'hanwoo');
+  const hwSub = pickTiered(hwSubs, ['양파', ...hwUsedSubs, ...usedToday], hwWeek);
+  hwWeek.push(hwSub);
   usedToday.add(hwSub);
 
   // 닭 — 이번 주 주재료 중복 방지 + 당일 중복 방지(한우 메인·서브 포함), 서브는 4주 콤보 기준
@@ -1050,7 +1080,9 @@ function buildYushikMenu(dayIndex, usedThisWeek, prevWeek) {
   usedToday.add(ckMain);
   const ckSubs = PAIRINGS.chicken[ckMain] || ['당근','감자','쥬키니호박'];
   const ckUsedSubs = usedSubsFor(prevWeek.chicken, ckMain);
-  const ckSub = pickExcluding(ckSubs, ['양파', ...ckUsedSubs, ...usedToday]);
+  const ckWeek = weekSubs(usedThisWeek, 'chicken');
+  const ckSub = pickTiered(ckSubs, ['양파', ...ckUsedSubs, ...usedToday], ckWeek);
+  ckWeek.push(ckSub);
   usedToday.add(ckSub);
 
   // 기타단백질 — 이번 주 주재료 중복 방지 + 당일 중복 방지(한우·닭 메인·서브 전부), 서브는 4주 콤보 기준
@@ -1059,7 +1091,9 @@ function buildYushikMenu(dayIndex, usedThisWeek, prevWeek) {
   usedToday.add(p3Main);
   const p3Subs = PAIRINGS.protein3[p3Main] || ['쥬키니호박','감자','브로콜리'];
   const p3UsedSubs = usedSubsFor(prevWeek.p3, p3Main);
-  const p3Sub = pickExcluding(p3Subs, ['양파', ...p3UsedSubs, ...usedToday]);
+  const p3Week = weekSubs(usedThisWeek, 'p3');
+  const p3Sub = pickTiered(p3Subs, ['양파', ...p3UsedSubs, ...usedToday], p3Week);
+  p3Week.push(p3Sub);
   usedToday.add(p3Sub);
   // 기타단백질 요리는 한우/닭과 달리 주재료(p3Main)가 채소가 아니라서 베이스 채소를 하나
   // 고정으로 더 넣어왔는데, 그게 무조건 '당근'으로 하드코딩돼 있어서 p3Sub가 하필 당근으로
@@ -1068,7 +1102,18 @@ function buildYushikMenu(dayIndex, usedThisWeek, prevWeek) {
   // 쥬키니호박/브로콜리) 한우·닭 요리가 이미 그 4개를 다 써버려서 후보가 고갈되는 경우가 잦아
   // 후보군을 넉넉히 잡음.
   const P3_BASE_CANDIDATES = ['당근','감자','쥬키니호박','브로콜리','양배추','애호박','무','배추','콜리플라워','시금치'];
-  const p3Base = P3_BASE_CANDIDATES.find(v => !usedToday.has(v)) || '당근';
+  // find() 로 앞에서부터 집기 때문에 하루 안에서만 피하면 매일 '당근'이나 '감자'가 다시 뽑힌다.
+  // 이 베이스도 재료줄에 찍히고 중복 검사(findTypeDuplicates)에 걸리므로 주간 중복도 피한다.
+  // 후보 10개라 바닥날 일은 거의 없지만, 바닥나면 하루 중복만이라도 지킨다.
+  //
+  // 베이스는 서브와 다른 칸에 기록한다. 같은 칸에 넣으면 후보 10개짜리 베이스가
+  // 후보 3~4개짜리 서브의 자리를 먹어서, 뒷 요일 서브가 바닥나 중복이 되살아난다.
+  // (한 칸으로 묶어 재보니 기타단백 중복이 38.2%, 나눠서 재니 아래 수치로 떨어졌다.)
+  const p3BaseWeek = weekSubs(usedThisWeek, 'p3base');
+  const p3Base = P3_BASE_CANDIDATES.find(v => !usedToday.has(v) && !p3BaseWeek.includes(v))
+              || P3_BASE_CANDIDATES.find(v => !usedToday.has(v))
+              || '당근';
+  p3BaseWeek.push(p3Base);
   usedToday.add(p3Base);
 
   return [
@@ -2296,9 +2341,12 @@ async function regenDay(di) {
   currentMenu.forEach((d, i) => {
     if (i !== di && d.type === 'yushik') {
       d.menus.forEach(m => {
-        if (m.type === 'hanwoo') usedThisWeek.hanwoo.push(m.mainVeggie);
-        else if (m.type === 'chicken') usedThisWeek.chicken.push(m.mainVeggie);
-        else if (m.mainProtein) usedThisWeek.p3.push(m.mainProtein);
+        // 서브재료도 같이 모은다 — 안 모으면 하루만 다시 뽑을 때 다른 날 서브를 몰라서
+        // 주간 중복 방지가 '전체 생성'에서만 듣고 '하루 재생성'에서는 빠진다.
+        const key = m.type === 'hanwoo' ? 'hanwoo' : m.type === 'chicken' ? 'chicken' : m.mainProtein ? 'p3' : null;
+        if (!key) return;
+        usedThisWeek[key].push(key === 'p3' ? m.mainProtein : m.mainVeggie);
+        if (m.subVeggie) weekSubs(usedThisWeek, key).push(m.subVeggie);
       });
     }
   });
