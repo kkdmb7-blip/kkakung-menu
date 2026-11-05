@@ -1908,8 +1908,16 @@ function showAddPicker() {
   // 뺌. 예전엔 "지금 편집 중인 종류(한우/닭/기타단백질)"의 표준 목록하고만 비교해서, 예를 들어
   // 한우 요리를 편집할 땐 렌틸콩·강황쌀처럼 기타단백질 표준 재료가 전부 "자주 쓰는 재료"로
   // 잘못 분류돼 화면을 가득 채우는 문제가 있었음 — 전 카테고리(ALL_INGREDIENTS) 기준으로 비교.
+  // 줄여 적은 이름이 "자주 쓰는 재료"에 따로 남아서, 같은 재료가 칩 두 개로 보였다
+  // ('팽이' 와 '팽이버섯'). 대표 이름(canonIng)이 지금 화면에 이미 떠 있으면 줄인 쪽은 숨긴다.
+  //
+  // 전체 목록(ALL_INGREDIENTS)이 아니라 "이 화면의 후보" 와 비교하는 것이 중요하다.
+  // 정식 이름이 모든 화면에 다 있는 건 아니라서 — 느타리버섯은 기타단백질 궁합표에 없고
+  // 만가닥버섯은 한우에만 있다 — 전체 기준으로 숨기면 그 화면에선 고를 방법이 사라진다.
+  // 팽이버섯은 네 화면 모두에 있어서 '팽이' 는 어디서든 사라진다.
+  const stdHere = new Set([...options, ...used]);
   const allIngredientSet = new Set(ALL_INGREDIENTS);
-  const customIngreds = getCustomIngreds().filter(o => o && !used.has(o) && !allIngredientSet.has(o)).sort((a, b) => a.localeCompare(b, 'ko'));
+  const customIngreds = getCustomIngreds().filter(o => o && !used.has(o) && !allIngredientSet.has(o) && !stdHere.has(canonIng(o))).sort((a, b) => a.localeCompare(b, 'ko'));
   // addCustomIngred()에서 "이미 있는 재료인지" 검사할 때 쓰려고 지금 화면에 뜬 전체 후보 +
   // 다른 카테고리 표준 재료까지 전부 기억해둠 (직접입력이 다른 종류 표준재료와 겹쳐서
   // 또 저장되는 것 방지)
@@ -4191,7 +4199,7 @@ async function downloadImages() {
       const res = await fetch(IMAGE_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(unifyPrintPayload(payload))
       });
 
       if (!res.ok) throw new Error(`API 오류: ${res.status}`);
@@ -4287,6 +4295,36 @@ function pickOriAll(list) {
     res.push(s + (FORG_ORIGIN[s] || '국내산'));
   });
   return res;
+}
+
+/**
+ * 나가는 인쇄물·이미지에서 재료 이름을 한 가지로 통일한다.
+ *
+ * '팽이' 라고 적으셔도 메뉴표에는 '팽이버섯' 으로 찍힌다. 궁합표(PAIRINGS)와
+ * 반찬·국 목록은 이미 '팽이버섯' 하나만 쓰고 있어서 자동 생성분은 원래 맞았고,
+ * 손으로 고른 칸에서만 두 이름이 섞였다.
+ *
+ * INGREDIENT_ALIAS(canonIng) 와는 쓰임이 다르다. 저쪽은 영양소를 찾을 때 쓰는
+ * 대표 이름이라 보이는 글자는 건드리지 않고, 이쪽은 보이는 글자 자체를 바꾼다.
+ * 목록을 따로 두는 이유다 — 한쪽을 늘렸다고 다른 쪽이 따라 바뀌면 안 된다.
+ *
+ * 앱 화면은 안 바꾼다. 적은 그대로 보여야 고칠 수 있다.
+ */
+// 글자 중간에서는 안 잡는다('달팽이'). 구분자 뒤나 문자열 맨 앞에서만 바꾼다.
+// 뒤에 이미 '버섯' 이 붙어 있으면 건너뛴다 — '팽이버섯버섯' 방지.
+const PRINT_RENAME = [[/(^|[\s,·\/()])팽이(?!버섯)/g, '$1팽이버섯']];
+
+function unifyIngText(s) {
+  let t = String(s == null ? '' : s);
+  PRINT_RENAME.forEach(([re, to]) => { t = t.replace(re, to); });
+  return t;
+}
+
+// 이미지·PDF 는 서버(/api/menu-image)가 그리니까 보내는 글자를 바꿔야 한다.
+// 재료·메뉴이름·원산지가 여러 칸에 흩어져 있어 칸마다 고치면 빠뜨리기 쉬워서,
+// 보내기 직전에 문자열 전부를 한 번에 통과시킨다.
+function unifyPrintPayload(p) {
+  return JSON.parse(JSON.stringify(p), (k, v) => (typeof v === 'string' ? unifyIngText(v) : v));
 }
 
 function printMenuTable(withNut) {
@@ -4451,7 +4489,7 @@ function printMenuTable(withNut) {
 
   function buildTitle(m) {
     const sfxIng = ['양파','채소상탕','한우육수','닭육수'];
-    const ings = (m.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const ings = (m.ingredients||'').split(',').map(s=>unifyIngText(s.trim())).filter(Boolean);
     const main = ings.filter(s=>!sfxIng.includes(s));
     if (m.type==='hanwoo') {
       const v = main.find(s=>s!=='한우')||'';
@@ -4473,8 +4511,8 @@ function printMenuTable(withNut) {
   function sortI(ingStr, menuName, mtype) {
     const sfx = TYPE_SFX[mtype] || ['양파','채소상탕'];
     // 안 적는 재료는 여기서 뺀다. 이 함수가 이유식 재료줄과 원산지줄 양쪽의
-    // 입구라서, 한 군데서 빼면 둘 다 빠진다.
-    let p = ingStr.split(',').map(s=>s.trim()).filter(Boolean).filter(s=>!HIDEING.includes(s));
+    // 입구라서, 한 군데서 빼면 둘 다 빠진다. 이름 통일도 같은 이유로 여기서 한다.
+    let p = ingStr.split(',').map(s=>unifyIngText(s.trim())).filter(Boolean).filter(s=>!HIDEING.includes(s));
     sfx.forEach(s => { if (!p.includes(s)) p.push(s); });
     const body = p.filter(s => !sfx.includes(s));
     const nToks = (menuName||'').replace(/\s*(죽|무른밥|진밥).*$/,'').trim().split(/\s+/);
@@ -4507,7 +4545,8 @@ function printMenuTable(withNut) {
   function yushikCard(day) {
     const typeOrd = {hanwoo:0, chicken:1};
     const menus = (day.menus||[]).slice().sort((a,b)=>(typeOrd[a.type]??2)-(typeOrd[b.type]??2));
-    const ori = day.origins || buildOri(menus);
+    // 손으로 적어 둔 원산지줄은 sortI 를 안 거치니 여기서 통일한다('팽이국내산' → '팽이버섯국내산').
+    const ori = day.origins ? unifyIngText(day.origins) : buildOri(menus);
     const dt = formatKorDate(day.date);
     const ING_FS = 10.5, ING_LH = 1.55;          // 한 줄 약 16.3px
     // 재료가 많은 메뉴에 맞춰 한 줄에 몇 개씩 넣을지 정한다(3줄을 넘기지 않게)
@@ -4575,7 +4614,7 @@ function printMenuTable(withNut) {
     const HC = '#c0e8a8'; const SC = '#c0e8a8';
     function cellHtml(idx) {
       const it = items[idx]||{};
-      const ingP = (it.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean)
+      const ingP = (it.ingredients||'').split(',').map(s=>unifyIngText(s.trim())).filter(Boolean)
         .filter(s=>!HIDEING.includes(s));
       const nonS = ingP.filter(s=>!['양파','채소상탕'].includes(s));
       const sfxP = ingP.filter(s=>['양파','채소상탕'].includes(s));
@@ -4593,13 +4632,13 @@ function printMenuTable(withNut) {
         ingHtml = '<div>( '+allIng.join(', ')+' )</div>';
       }
       return '<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-        +'<div style="background:'+HC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false"'+pe()+'>'+(idx+1)+'. '+(it.name||'')+'</div>'
+        +'<div style="background:'+HC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false"'+pe()+'>'+(idx+1)+'. '+unifyIngText(it.name||'')+'</div>'
         +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false"'+pe()+'>'
         +ingHtml
         +'<div style="color:#666;margin-top:4px;word-break:keep-all;">'+oriP.join(', ')+'</div>'
         +'</div></td>';
     }
-    const sP = (soup.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean)
+    const sP = (soup.ingredients||'').split(',').map(s=>unifyIngText(s.trim())).filter(Boolean)
       .filter(s=>!HIDEING.includes(s));
     const sNonS = sP.filter(s=>!['양파','채소상탕'].includes(s));
     const sSfx  = sP.filter(s=>['양파','채소상탕'].includes(s));
@@ -4623,7 +4662,7 @@ function printMenuTable(withNut) {
       +'<tr>'+cellHtml(0)+cellHtml(1)+cellHtml(2)+'</tr>'
       +'<tr>'+cellHtml(3)+cellHtml(4)
       +'<td style="padding:0;vertical-align:top;border:1px solid #bbb;">'
-      +'<div style="background:'+SC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false"'+pe()+'>6. '+(soup.name||'국')+'</div>'
+      +'<div style="background:'+SC+';font-size:13px;font-weight:800;height:42px;display:flex;align-items:center;justify-content:center;text-align:center;border-bottom:1px solid #bbb;padding:0 4px;" contenteditable="true" spellcheck="false"'+pe()+'>6. '+unifyIngText(soup.name||'국')+'</div>'
       +'<div style="padding:0 8px;font-size:12.5px;line-height:1.85;color:#333;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;height:36mm;" contenteditable="true" spellcheck="false"'+pe()+'>'
       +(()=>{const sAll=[...sNonS,...sSfx];if(sAll.length>=5){const m=Math.ceil(sAll.length/2);return'<div>( '+sAll.slice(0,m).join(', ')+',</div><div>'+sAll.slice(m).join(', ')+' )</div>';}return'<div>( '+sAll.join(', ')+' )</div>';})()
       +'<div style="color:#666;margin-top:4px;word-break:keep-all;">'+sOri+'</div>'
@@ -4871,7 +4910,7 @@ async function downloadPDF() {
         };
       }
 
-      const res = await fetch(IMAGE_API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const res = await fetch(IMAGE_API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(unifyPrintPayload(payload)) });
       if (!res.ok) throw new Error(`API 오류: ${res.status}`);
 
       const blob = await res.blob();
