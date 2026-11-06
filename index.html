@@ -329,6 +329,7 @@ html, body { overflow-x: hidden; }
     <button class="btn btn-ghost" onclick="printMenuTable(false)" style="background:#e8f4e8;color:#2a7a2a;border-color:#8ac08a;">🖨️ 메뉴표 인쇄 / PDF</button>
     <button class="btn btn-ghost" onclick="printMenuTable(true)" style="background:#F3F0FF;color:#6d4bc9;border-color:#c9baf0;">🖨️ 메뉴표 + 영양성분</button>
     <button class="btn btn-ghost" id="detailImgBtn" onclick="downloadDetailImage()" style="background:#e8f2e9;color:#3a6b3e;border-color:#3a6b3e;">📅 상세페이지용 이미지</button>
+    <button class="btn btn-ghost" id="monthImgBtn" onclick="downloadMonthImage()" style="background:#e8f2e9;color:#3a6b3e;border-color:#3a6b3e;">🗓️ 한 달 식단표</button>
     <button class="btn btn-ghost" onclick="resetToSaved()" style="color:var(--primary)">🔄 서버 새로고침</button>
     <button class="btn btn-ghost" onclick="openPairingCheck()" style="background:#F0EEFF;color:#8B6FE8;border-color:#d4c8f8;">🥕 재료 궁합</button>
     <button class="btn btn-ghost" onclick="openShoppingList()" style="background:#FFF6E5;color:#a06a00;border-color:#f0d69a;">🧺 재료 준비 목록</button>
@@ -4978,6 +4979,36 @@ const DETAIL_GREEN = '#3a6b3e';
 const DETAIL_BEIGE = '#faf8f4';
 const DETAIL_LINE  = '#e8e2d6';
 
+// 이유식은 따로 요리 이름이 없다. 저장된 이름에서 '죽/무른밥/진밥' 꼬리만 떼어 메뉴명으로 쓴다.
+// 주간 이미지와 한 달 달력이 같은 이름을 쓰도록 한 군데에 둔다.
+function detailMenuName(m) {
+  return unifyIngText(String((m && (m.displayName || m.name)) || '')
+    .replace(/\s*죽(\/무른밥\/진밥)?$/, '').trim());
+}
+
+// 화면 밖에 그려서 PNG 로 내려받기 — 주간·월간이 같은 길을 쓴다.
+async function snapAndDownload(html, width, scale, filename) {
+  const holder = document.createElement('div');
+  try {
+    // display:none 이면 높이가 0 이라 html2canvas 가 빈 그림을 찍는다. 화면 밖으로 밀어 둔다.
+    holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + width + 'px;z-index:-1;';
+    holder.innerHTML = html;
+    document.body.appendChild(holder);
+    const canvas = await html2canvas(holder.firstElementChild,
+      { scale: scale, backgroundColor: DETAIL_BEIGE, useCORS: true });
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    if (!blob) throw new Error('이미지를 만들지 못했어요');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    holder.remove();
+  }
+}
+
 // 메뉴 한 줄 — 이름 굵게, 재료는 그 아래 작게.
 // 폭이 좁아서 word-break:keep-all 로 낱말 중간에서 안 끊기게 한다.
 function detailLine(label, name, ingred) {
@@ -5012,11 +5043,9 @@ function detailDayCell(day) {
     }
     return h || '<div style="font-size:14px;color:#b9b3a4;">—</div>';
   }
-  // 이유식은 따로 요리 이름이 없다. 인쇄물·이미지와 같은 방식으로 저장된 이름에서
-  // '죽/무른밥/진밥' 꼬리만 떼어 메뉴명으로 쓰고, 재료줄은 육수·채소상탕을 숨긴 것을 쓴다.
+  // 재료줄은 육수·채소상탕을 숨긴 것을 쓴다(인쇄물과 같은 규칙).
   const lines = (day.menus || []).map(m => {
-    const name = unifyIngText(String(m.displayName || m.name || '')
-      .replace(/\s*죽(\/무른밥\/진밥)?$/, '').trim());
+    const name = detailMenuName(m);
     const ing = unifyIngText(normalizeYushikIngredients(m.ingredients || '', m.type))
       .split(',').map(s => s.trim()).filter(s => s && !HIDEING.includes(s)).join(', ');
     const shown = name || ing;
@@ -5036,7 +5065,6 @@ async function downloadDetailImage() {
   const btnLabel = btn ? btn.textContent : '';
   if (btn) { btn.textContent = '⏳ 만드는 중...'; btn.disabled = true; }
 
-  const holder = document.createElement('div');
   try {
     // 요일은 날짜에서 직접 읽는다. 월~금 다섯 칸으로 못 박으면 날짜가 밀린 주에
     // 칸이 조용히 비거나 하루가 사라진다.
@@ -5074,28 +5102,153 @@ async function downloadDetailImage() {
       +   '오늘 만들어 오늘 발송 · 강서구 10년</div>'
       + '</div>';
 
-    // 화면 밖에 둔다. display:none 이면 높이가 0 이라 html2canvas 가 빈 그림을 찍는다.
-    holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + DETAIL_W + 'px;z-index:-1;';
-    holder.innerHTML = html;
-    document.body.appendChild(holder);
-
-    const canvas = await html2canvas(holder.firstElementChild,
-      { scale: DETAIL_SCALE, backgroundColor: DETAIL_BEIGE, useCORS: true });
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-    if (!blob) throw new Error('이미지를 만들지 못했어요');
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `까꿍디미방_식단표_${first.getFullYear()}년${String(first.getMonth() + 1).padStart(2, '0')}월.png`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await snapAndDownload(html, DETAIL_W, DETAIL_SCALE,
+      `까꿍디미방_식단표_${first.getFullYear()}년${String(first.getMonth() + 1).padStart(2, '0')}월.png`);
     showToast('✅ 상세페이지용 이미지를 내려받았어요');
   } catch (e) {
     showToast('❌ 이미지 오류: ' + e.message);
     console.error(e);
   } finally {
-    holder.remove();
+    if (btn) { btn.textContent = btnLabel; btn.disabled = false; }
+  }
+}
+
+// ===== 상세페이지용 한 달 식단표 이미지 =====
+/**
+ * 한 달치를 달력 한 장으로. 주간 이미지와 쓰임이 다르다 — 저쪽은 "이번 주에 뭐가
+ * 나가는지"를 폰으로 보여주는 것이고, 이쪽은 상세페이지에 걸어두고 "이번 달에 뭘
+ * 먹는지" 미리 보여주는 것이다.
+ *
+ * currentMenu 한 주로는 못 만든다. 나머지 주는 DB(kkakung_history)의 주차 row 안
+ * yusik.schedule 에 들어 있어서, 그 달에 걸치는 주차를 모아 날짜별로 펴야 한다.
+ * 편집 중이라 아직 저장 안 한 주는 currentMenu 를 위에 덮는다 — 저장 전이라고
+ * 그 주만 빈 칸으로 나가면 안 된다.
+ *
+ * 폭은 주간 이미지(390px)와 다르다. 요일을 가로로 늘어놓는 달력이라 390px 에서는
+ * 한 칸이 78px 이라 메뉴 이름이 안 읽힌다.
+ */
+const MONTH_W     = 800;
+const MONTH_SCALE = 2;      // 800 x 2 = 1600px — 상세페이지에 올리기 충분하다
+
+// 달력 한 칸에 적을 메뉴 이름들. 좁아서 이름만 적고 재료는 뺀다.
+function monthMenuNames(day) {
+  if (!day) return [];
+  if (day.type === 'yusik') {
+    const names = (day.items || []).filter(it => it && it.name).map(it => unifyIngText(it.name));
+    if (day.soup && day.soup.name) names.push('국 · ' + unifyIngText(day.soup.name));
+    return names;
+  }
+  return (day.menus || []).map(detailMenuName).filter(Boolean);
+}
+
+function monthCell(dt, year, month, byDate) {
+  const pad = 'border:1px solid #e6e2d8;padding:10px 9px;vertical-align:top;';
+  // 그 달이 아닌 날(1일 앞, 말일 뒤)은 칸만 비워 둔다
+  if (dt.getFullYear() !== year || dt.getMonth() !== month) {
+    return '<td style="' + pad + 'background:#fbfaf7;"></td>';
+  }
+  const day = byDate[formatDate(dt)];
+  let body;
+  if (!day) {
+    body = '';                                   // 아직 안 짠 날 — 휴무와 구분해서 비워 둔다
+  } else if (day.removed) {
+    body = '<div style="font-size:12px;color:#c3beb2;">휴무</div>';
+  } else {
+    body = monthMenuNames(day).map(n =>
+      '<div style="font-size:12px;line-height:1.5;color:#2f3a2c;word-break:keep-all;margin-bottom:3px;">'
+      + escapeDup(n) + '</div>').join('');
+  }
+  return '<td style="' + pad + 'background:#fff;">'
+    + '<div style="font-size:13px;font-weight:700;color:#9a9486;margin-bottom:6px;">' + dt.getDate() + '</div>'
+    + body + '</td>';
+}
+
+async function downloadMonthImage() {
+  if (!window.html2canvas) { showToast('⚠️ 이미지 모듈을 못 불러왔어요 — 새로고침 후 다시 시도해주세요'); return; }
+
+  const btn = document.getElementById('monthImgBtn');
+  const btnLabel = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '⏳ 불러오는 중...'; btn.disabled = true; }
+
+  try {
+    // 기준 달 = 지금 고른 주가 속한 달. 다음 달 것을 뽑으려면 다음 달 주차를 고르면 된다.
+    const baseStr = (document.getElementById('weekStart') || {}).value;
+    const base = baseStr ? new Date(baseStr) : new Date();
+    const year = base.getFullYear(), month = base.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay  = new Date(year, month + 1, 0);
+
+    // 주차 id 는 월요일이다. 1일이 속한 주의 월요일은 지난달일 수 있어 거기서부터 받는다.
+    const from = formatDate(getMonday(firstDay));
+    const res = await fetch(
+      `${SB_URL}/rest/v1/kkakung_history?id=gte.${from}&id=lte.${formatDate(lastDay)}&select=id,yusik`,
+      { headers: SB_HEADERS });
+    if (!res.ok) throw new Error('기록을 불러오지 못했어요 (HTTP ' + res.status + ')');
+    const rows = await res.json();
+
+    const byDate = {};
+    rows.forEach(r => ((r.yusik && r.yusik.schedule) || []).forEach(d => {
+      if (d && d.date) byDate[String(d.date).slice(0, 10)] = d;
+    }));
+    // 저장 안 한 편집 중인 주를 위에 덮는다
+    (currentMenu || []).forEach(d => {
+      const dt = d.date instanceof Date ? d.date : new Date(d.date);
+      if (!isNaN(dt.getTime())) byDate[formatDate(dt)] = d;
+    });
+
+    const label = year + '년 ' + (month + 1) + '월';
+    const filled = Object.keys(byDate).filter(k => {
+      const dt = new Date(k);
+      return dt.getFullYear() === year && dt.getMonth() === month;
+    });
+    if (!filled.length) { showToast('⚠️ ' + label + ' 저장된 메뉴가 없어요'); return; }
+
+    // 주 단위로 한 줄씩. 한 줄이 통째로 그 달 밖이면(1일이 토·일인 달) 그 줄은 안 그린다.
+    const weeks = [];
+    const cur = getMonday(firstDay);
+    while (cur <= lastDay) {
+      const cells = [];
+      let inMonth = false;
+      for (let i = 0; i < 5; i++) {
+        const dt = new Date(cur);
+        dt.setDate(cur.getDate() + i);
+        if (dt.getFullYear() === year && dt.getMonth() === month) inMonth = true;
+        cells.push(monthCell(dt, year, month, byDate));
+      }
+      if (inMonth) weeks.push('<tr>' + cells.join('') + '</tr>');
+      cur.setDate(cur.getDate() + 7);
+    }
+
+    const head = ['월','화','수','목','금'].map(d =>
+      '<th style="background:' + DETAIL_GREEN + ';color:#fff;font-size:14px;font-weight:700;'
+      + 'padding:11px 0;border:1px solid ' + DETAIL_GREEN + ';">' + d + '</th>').join('');
+
+    const html = '<div style="width:' + MONTH_W + 'px;background:' + DETAIL_BEIGE + ';padding:40px 34px 32px;'
+      + 'font-family:\'Noto Sans KR\',sans-serif;color:#2f3a2c;word-break:keep-all;">'
+      + '<div style="font-size:14px;font-weight:700;color:' + DETAIL_GREEN + ';letter-spacing:.04em;">까꿍디미방 이달의 식단표</div>'
+      + '<div style="font-size:38px;font-weight:700;line-height:1.3;margin-top:10px;">' + label + '에<br>무엇이 나가는지 미리 보세요</div>'
+      // 아래 한 줄은 지어낸 말이 아니다 — 메뉴를 뽑을 때 실제로 같은 재료가 한 주 안에서
+      // 겹치지 않게 돌리고 있고, 궁합표를 보고 짝을 짓는다.
+      + '<div style="font-size:15px;color:#5e665a;line-height:1.8;margin-top:16px;">'
+      +   '재료 궁합을 보고 식단을 짜고, 같은 재료가 겹치지 않게 돌립니다.</div>'
+      + '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-top:22px;'
+      +   'border:1px solid ' + DETAIL_GREEN + ';">'
+      +   '<thead><tr>' + head + '</tr></thead><tbody>' + weeks.join('') + '</tbody>'
+      + '</table>'
+      + '<div style="font-size:13px;color:#8a8577;line-height:1.9;margin-top:14px;">'
+      +   '<div>※ 재료 수급에 따라 일부 변경될 수 있으며, 변경 시 미리 안내드립니다</div>'
+      +   '<div>※ 알레르기나 조정이 필요한 재료는 주문 시 편하게 말씀 주세요</div>'
+      +   '<div>※ 주문은 일요일 저녁 10시까지 부탁드립니다</div>'
+      + '</div>'
+      + '</div>';
+
+    await snapAndDownload(html, MONTH_W, MONTH_SCALE,
+      `까꿍디미방_한달식단표_${year}년${String(month + 1).padStart(2, '0')}월.png`);
+    showToast(`✅ ${label} 식단표를 내려받았어요 (${filled.length}일)`);
+  } catch (e) {
+    showToast('❌ 이미지 오류: ' + e.message);
+    console.error(e);
+  } finally {
     if (btn) { btn.textContent = btnLabel; btn.disabled = false; }
   }
 }
