@@ -328,7 +328,6 @@ html, body { overflow-x: hidden; }
   <div class="bottom-bar-actions">
     <button class="btn btn-ghost" onclick="printMenuTable(false)" style="background:#e8f4e8;color:#2a7a2a;border-color:#8ac08a;">🖨️ 메뉴표 인쇄 / PDF</button>
     <button class="btn btn-ghost" onclick="printMenuTable(true)" style="background:#F3F0FF;color:#6d4bc9;border-color:#c9baf0;">🖨️ 메뉴표 + 영양성분</button>
-    <button class="btn btn-ghost" id="detailImgBtn" onclick="downloadDetailImage()" style="background:#e8f2e9;color:#3a6b3e;border-color:#3a6b3e;">📅 상세페이지용 이미지</button>
     <button class="btn btn-ghost" id="monthImgBtn" onclick="downloadMonthImage()" style="background:#e8f2e9;color:#3a6b3e;border-color:#3a6b3e;">🗓️ 한 달 식단표</button>
     <button class="btn btn-ghost" onclick="resetToSaved()" style="color:var(--primary)">🔄 서버 새로고침</button>
     <button class="btn btn-ghost" onclick="openPairingCheck()" style="background:#F0EEFF;color:#8B6FE8;border-color:#d4c8f8;">🥕 재료 궁합</button>
@@ -4958,35 +4957,30 @@ async function downloadPDF() {
 
 // ===== 상세페이지용 식단표 이미지 =====
 /**
- * 쇼핑몰 상세페이지에 붙일 한 주 식단표를 달력 모양 PNG 한 장으로 내려받는다.
+ * 쇼핑몰 상세페이지에 붙일 식단표 그림. 여기는 공통 부분이고, 실제로 그리는 것은
+ * 아래 "상세페이지용 한 달 식단표" 하나다.
  *
  * 인쇄용 메뉴표(printMenuTable)와 쓰임이 다르다. 저쪽은 A4 한 장에 단계별
  * 재료·영양까지 넣어 포장과 함께 나가는 종이고, 이쪽은 손님이 상세페이지에서
- * 훑어보는 그림이라 "어느 요일에 무엇이 나가는지"만 크게 보여준다.
+ * 훑어보는 그림이라 "어느 날에 무엇이 나가는지"만 보여준다.
  *
- * 서버(/api/menu-image)는 안 쓴다. 그쪽은 하루 한 장씩 그리는 틀이라 한 주를
+ * 서버(/api/menu-image)는 안 쓴다. 그쪽은 하루 한 장씩 그리는 틀이라 여러 날을
  * 한 장에 담을 수 없다. 화면 밖에 div 를 만들어 html2canvas 로 찍고 지운다.
  *
  * 글자는 인쇄물과 같은 길을 쓴다 — unifyIngText('팽이'→'팽이버섯'),
  * normalizeYushikIngredients(육수·채소상탕 숨김), HIDEING(간장).
  * 손님에게 나가는 종이와 그림이 서로 다르게 적히면 안 된다.
  */
-// 폰 화면에서 보는 그림이다. 390px(아이폰 기준)로 짜고 scale 3 으로 찍어
-// 실제 1170px 로 나간다. 좁으니까 요일을 가로로 늘어놓지 않고 카드를 세로로 쌓는다.
-const DETAIL_W     = 390;
-const DETAIL_SCALE = 3;
 const DETAIL_GREEN = '#3a6b3e';
 const DETAIL_BEIGE = '#faf8f4';
-const DETAIL_LINE  = '#e8e2d6';
 
 // 이유식은 따로 요리 이름이 없다. 저장된 이름에서 '죽/무른밥/진밥' 꼬리만 떼어 메뉴명으로 쓴다.
-// 주간 이미지와 한 달 달력이 같은 이름을 쓰도록 한 군데에 둔다.
 function detailMenuName(m) {
   return unifyIngText(String((m && (m.displayName || m.name)) || '')
     .replace(/\s*죽(\/무른밥\/진밥)?$/, '').trim());
 }
 
-// 화면 밖에 그려서 PNG 로 내려받기 — 주간·월간이 같은 길을 쓴다.
+// 화면 밖에 그려서 PNG 로 내려받기.
 async function snapAndDownload(html, width, scale, filename) {
   const holder = document.createElement('div');
   try {
@@ -5009,123 +5003,18 @@ async function snapAndDownload(html, width, scale, filename) {
   }
 }
 
-// 메뉴 한 줄 — 이름 굵게, 재료는 그 아래 작게.
-// 폭이 좁아서 word-break:keep-all 로 낱말 중간에서 안 끊기게 한다.
-function detailLine(label, name, ingred) {
-  const esc = escapeDup;   // 사장님이 손으로 적은 글자가 그대로 들어오니 막아 둔다
-  let h = '<div style="margin-top:10px;padding-left:10px;border-left:3px solid #cfe0c8;word-break:keep-all;">'
-    + '<div style="font-size:15px;font-weight:700;color:#2f3a2c;line-height:1.45;">'
-    + (label ? '<span style="color:' + DETAIL_GREEN + ';">' + label + '</span> ' : '')
-    + esc(name) + '</div>';
-  if (ingred) {
-    h += '<div style="font-size:14px;color:#6f7a66;line-height:1.5;margin-top:3px;">' + esc(ingred) + '</div>';
-  }
-  return h + '</div>';
-}
-
-// 하루 카드 한 장의 속. 날짜 + 메뉴명 + 재료.
-function detailDayCell(day) {
-  if (day.removed) {
-    return '<div style="font-size:14px;color:#b9b3a4;font-weight:500;padding:4px 0;">휴무</div>';
-  }
-  if (day.type === 'yusik') {
-    const items = (day.items || []).filter(it => it && it.name);
-    let h = '';
-    items.forEach((it, i) => {
-      const ing = unifyIngText(it.ingredients || '').split(',').map(s => s.trim())
-        .filter(s => s && !HIDEING.includes(s)).join(', ');
-      h += detailLine(String(i + 1), unifyIngText(it.name), ing);
-    });
-    if (day.soup && day.soup.name) {
-      const sIng = unifyIngText(day.soup.ingredients || '').split(',').map(s => s.trim())
-        .filter(s => s && !HIDEING.includes(s)).join(', ');
-      h += detailLine('국', unifyIngText(day.soup.name), sIng);
-    }
-    return h || '<div style="font-size:14px;color:#b9b3a4;">—</div>';
-  }
-  // 재료줄은 육수·채소상탕을 숨긴 것을 쓴다(인쇄물과 같은 규칙).
-  const lines = (day.menus || []).map(m => {
-    const name = detailMenuName(m);
-    const ing = unifyIngText(normalizeYushikIngredients(m.ingredients || '', m.type))
-      .split(',').map(s => s.trim()).filter(s => s && !HIDEING.includes(s)).join(', ');
-    const shown = name || ing;
-    if (!shown) return '';
-    return detailLine('', shown, shown === ing ? '' : ing);
-  }).filter(Boolean).join('');
-  return lines || '<div style="font-size:14px;color:#b9b3a4;">—</div>';
-}
-
-async function downloadDetailImage() {
-  if (!currentMenu || !currentMenu.length) { showToast('⚠️ 먼저 메뉴를 생성해주세요'); return; }
-  // CDN 이 막히면 html2canvas 가 없다. 그때 눌러도 아무 일도 안 일어나면 고장으로 보여서
-  // 이유를 알려준다.
-  if (!window.html2canvas) { showToast('⚠️ 이미지 모듈을 못 불러왔어요 — 새로고침 후 다시 시도해주세요'); return; }
-
-  const btn = document.getElementById('detailImgBtn');
-  const btnLabel = btn ? btn.textContent : '';
-  if (btn) { btn.textContent = '⏳ 만드는 중...'; btn.disabled = true; }
-
-  try {
-    // 요일은 날짜에서 직접 읽는다. 월~금 다섯 칸으로 못 박으면 날짜가 밀린 주에
-    // 칸이 조용히 비거나 하루가 사라진다.
-    const days = currentMenu.slice(0, 5);
-    const dateOf = d => (d.date instanceof Date ? d.date : new Date(d.date));
-    const first = dateOf(days[0]);
-    const last  = dateOf(days[days.length - 1]);
-
-    const cards = days.map(d => {
-      const dt = dateOf(d);
-      const kind = d.removed ? '' : (d.type === 'yusik' ? '유아식' : '이유식');
-      return '<div style="background:#fff;border:1px solid ' + DETAIL_LINE + ';border-radius:14px;'
-        + 'padding:16px;margin-bottom:8px;word-break:keep-all;">'
-        + '<div>'
-        +   '<span style="display:inline-block;vertical-align:middle;background:' + DETAIL_GREEN + ';color:#fff;'
-        +     'font-size:14px;font-weight:700;border-radius:9px;padding:5px 11px;">'
-        +     DOW_NAMES[dt.getDay()] + ' ' + (dt.getMonth() + 1) + '.' + dt.getDate() + '</span>'
-        +   (kind ? '<span style="display:inline-block;vertical-align:middle;margin-left:8px;font-size:14px;'
-        +     'font-weight:700;color:#8a9683;">' + kind + '</span>' : '')
-        + '</div>'
-        + detailDayCell(d)
-        + '</div>';
-    }).join('');
-
-    const html = '<div style="width:' + DETAIL_W + 'px;background:' + DETAIL_BEIGE + ';padding:22px 16px 18px;'
-      + 'font-family:\'Noto Sans KR\',sans-serif;color:#33352f;word-break:keep-all;">'
-      + '<div style="text-align:center;margin-bottom:16px;">'
-      +   '<div style="font-size:21px;font-weight:700;color:' + DETAIL_GREEN + ';line-height:1.4;">까꿍디미방 이번 주 식단표</div>'
-      +   '<div style="font-size:14px;color:#6f7a66;margin-top:7px;">' + formatKorDate(first) + ' ~ ' + formatKorDate(last) + '</div>'
-      +   '<div style="width:48px;height:3px;background:' + DETAIL_GREEN + ';border-radius:2px;margin:13px auto 0;"></div>'
-      + '</div>'
-      + cards
-      + '<div style="margin-top:4px;background:#eef3ea;border-radius:12px;padding:13px 12px;text-align:center;'
-      +   'font-size:14px;font-weight:600;color:' + DETAIL_GREEN + ';line-height:1.5;">'
-      +   '오늘 만들어 오늘 발송 · 강서구 10년</div>'
-      + '</div>';
-
-    await snapAndDownload(html, DETAIL_W, DETAIL_SCALE,
-      `까꿍디미방_식단표_${first.getFullYear()}년${String(first.getMonth() + 1).padStart(2, '0')}월.png`);
-    showToast('✅ 상세페이지용 이미지를 내려받았어요');
-  } catch (e) {
-    showToast('❌ 이미지 오류: ' + e.message);
-    console.error(e);
-  } finally {
-    if (btn) { btn.textContent = btnLabel; btn.disabled = false; }
-  }
-}
-
 // ===== 상세페이지용 한 달 식단표 이미지 =====
 /**
- * 한 달치를 달력 한 장으로. 주간 이미지와 쓰임이 다르다 — 저쪽은 "이번 주에 뭐가
- * 나가는지"를 폰으로 보여주는 것이고, 이쪽은 상세페이지에 걸어두고 "이번 달에 뭘
- * 먹는지" 미리 보여주는 것이다.
+ * 한 달치를 달력 한 장으로. 상세페이지에 걸어두고 "이번 달에 뭘 먹는지" 미리
+ * 보여주는 그림이다.
  *
  * currentMenu 한 주로는 못 만든다. 나머지 주는 DB(kkakung_history)의 주차 row 안
  * yusik.schedule 에 들어 있어서, 그 달에 걸치는 주차를 모아 날짜별로 펴야 한다.
  * 편집 중이라 아직 저장 안 한 주는 currentMenu 를 위에 덮는다 — 저장 전이라고
  * 그 주만 빈 칸으로 나가면 안 된다.
  *
- * 폭은 주간 이미지(390px)와 다르다. 요일을 가로로 늘어놓는 달력이라 390px 에서는
- * 한 칸이 78px 이라 메뉴 이름이 안 읽힌다.
+ * 폭은 요일 다섯 칸에 재료까지 적어야 해서 1000px 이다. 800px 에서는 한 칸이
+ * 142px 이라 재료줄이 너무 잘게 끊겼다.
  */
 const MONTH_W     = 1000;
 const MONTH_SCALE = 2;      // 1000 x 2 = 2000px — 상세페이지에 올리기 충분하다
