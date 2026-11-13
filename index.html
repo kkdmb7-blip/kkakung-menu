@@ -918,6 +918,24 @@ async function getPrevWeekVeggies() {
   return { hanwoo, chicken, p3 };
 }
 
+// ===== 반찬 번호 순서 (어디서든 같게) =====
+// 메뉴표 인쇄가 반찬을 이 순서로 세우고 1~5번, 국을 6번으로 찍는다. 손님은 그 번호로 주문한다
+// ("1번 2번 3번 두 개 4번 빼고"). 그래서 저장할 때도, 이미지·상세페이지 글에도 같은 순서를 쓴다.
+//   소고기·한우 → 한돈·돼지 → 닭 → 그 밖 → 잔멸치 (같은 무리끼리는 적은 순서 그대로)
+// ⚠️ 주문앱(baby-food-order/lib/banchanOrder.ts)과 반드시 같은 규칙이어야 한다.
+function banchanPriority(name) {
+  const n = String(name || '');
+  if (n.includes('소고기') || n.includes('한우')) return 0;
+  if (n.includes('한돈') || n.includes('돼지')) return 1;
+  if (n.includes('닭')) return 2;
+  if (n.includes('잔멸치')) return 4;
+  return 3;
+}
+function sortBanchanItems(items) {
+  return (items || []).map((it, i) => ({ it, i, p: banchanPriority(it && it.name) }))
+    .sort((a, b) => a.p - b.p || a.i - b.i).map(x => x.it);
+}
+
 async function recordThisWeek(weekKey, menuData) {
   const yusikMenus = [];
   menuData.forEach(day => {
@@ -940,7 +958,8 @@ async function recordThisWeek(weekKey, menuData) {
     date: (day.date instanceof Date) ? day.date.toISOString().slice(0, 10) : day.date,
     type: day.type,
     ...(day.removed ? { removed: true } : {}),
-    items: day.type === 'yusik' ? (day.items || []).map(it => ({ name: it.name, ingredients: it.ingredients, origin: it.origin || '' })) : null,
+    // 인쇄와 같은 번호 순서로 저장 — 주문앱·손님 화면이 이 순서를 그대로 읽는다
+    items: day.type === 'yusik' ? sortBanchanItems(day.items || []).map(it => ({ name: it.name, ingredients: it.ingredients, origin: it.origin || '' })) : null,
     soup: day.type === 'yusik' ? { name: day.soup?.name || '', ingredients: day.soup?.ingredients || '', origin: day.soup?.origin || '' } : null,
     menus: day.type === 'yushik' ? (day.menus || []).map(m => ({
       type: m.type,
@@ -4160,7 +4179,7 @@ async function downloadImages() {
         };
       } else {
         // 유아식 - 각 item의 origin 직접 사용
-        const items = day.items.map(item => ({
+        const items = sortBanchanItems(day.items).map(item => ({
           name: item.name,
           ingred: item.ingredients.split(',').map(s => s.trim()).filter(s => !HIDEING.includes(s)).reduce((acc, _, i, arr) => {
             if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', '));
@@ -4606,18 +4625,7 @@ function printMenuTable(withNut) {
   }
 
   function yusikCard(day) {
-    const rawItems = day.items||[];
-    const items = [...rawItems].sort((a,b) => {
-      const pri = it => {
-        const n = (it.name||'');
-        if (n.includes('소고기')||n.includes('한우')) return 0;
-        if (n.includes('한돈')||n.includes('돼지')) return 1;
-        if (n.includes('닭')) return 2;
-        if (n.includes('잔멸치')) return 4;
-        return 3;
-      };
-      return pri(a) - pri(b);
-    });
+    const items = sortBanchanItems(day.items||[]);
     const soup  = day.soup||{};
     const dt = formatKorDate(day.date);
     const HC = '#c0e8a8'; const SC = '#c0e8a8';
@@ -4904,7 +4912,7 @@ async function downloadPDF() {
         const pdfOrigins = day.origins || pickOriAll([...new Set(allIngred)]).join(', ');
         payload = { type: 'yushik', date_str: formatKorDate(day.date), menus, origins: pdfOrigins };
       } else {
-        const items = day.items.map(item => ({
+        const items = sortBanchanItems(day.items).map(item => ({
           name: item.name,
           ingred: item.ingredients.split(',').map(s => s.trim()).filter(s => !HIDEING.includes(s)).reduce((acc, _, i, arr) => {
             if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', ')); return acc;
@@ -5036,7 +5044,7 @@ function monthMenuLines(day) {
   const clean = s => unifyIngText(s || '').split(',').map(x => x.trim())
     .filter(x => x && !HIDEING.includes(x)).join(', ');
   if (day.type === 'yusik') {
-    const lines = (day.items || []).filter(it => it && it.name)
+    const lines = sortBanchanItems((day.items || []).filter(it => it && it.name))
       .map(it => ({ name: unifyIngText(it.name), ing: clean(it.ingredients) }));
     if (day.soup && day.soup.name) {
       lines.push({ name: '국 · ' + unifyIngText(day.soup.name), ing: clean(day.soup.ingredients) });
