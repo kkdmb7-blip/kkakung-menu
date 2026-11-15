@@ -1678,6 +1678,7 @@ function renderDay(day, di) {
         <div class="menu-content">
           <div class="menu-ingredients" style="font-weight:700;color:var(--text)">${highlightIngreds(normalizeYushikIngredients(menu.ingredients, menu.type))}</div>
           ${midNoteOf(menu) ? `<div style="font-size:11px;color:#b84a1a;margin-top:3px;font-weight:600">⚠️ 중기: ${midNoteOf(menu)}</div>` : ''}
+          ${lateNoteOf(menu) ? `<div style="font-size:11px;color:#1a6a8a;margin-top:3px;font-weight:600">⚠️ 후기·완료기: ${lateNoteOf(menu)}</div>` : ''}
         </div>
         <div class="menu-actions">
           <button class="action-btn edit" onclick="openEdit(${di},${mi})">✏️</button>
@@ -2535,16 +2536,21 @@ function bannedForMidStage(ingredients) {
 // 화면·저장·인쇄에 쓸 "중기 주의" 문구. 사람이 직접 적은 메모가 있으면 같이 보여준다.
 // 중기 칸에 쓸 메뉴. 빠지는 재료를 재료 목록과 이름에서 모두 뺀다.
 // 인쇄·메뉴 이미지가 같은 결과를 내도록 전역에 둔다.
-function midStageMenu(menu) {
-  if (!menu) return menu;
-  const banned = bannedForMidStage(menu.ingredients);
-  if (!banned.length) return menu;
+// 빠지는 재료를 재료 목록과 이름에서 모두 뺀 메뉴를 돌려준다(원본은 건드리지 않는다).
+// 중기·후기 두 쪽이 같은 규칙을 쓰도록 한 군데에 모아뒀다.
+function menuWithout(menu, banned) {
+  if (!menu || !banned.length) return menu;
   const keep = x => x && !banned.some(bb => x === bb || x.includes(bb));
   const strip = t => String(t || '').split(/\s+/).filter(keep).join(' ').trim();
   const ing = String(menu.ingredients || '').split(',').map(x => x.trim()).filter(keep).join(', ');
   // 재료가 하나도 안 남으면 이름이 빈칸이 되어 "2. 죽"처럼 나간다. 그때는 원래 이름을 쓴다.
   const nm = strip(menu.displayName || menu.name) || (menu.displayName || menu.name || '');
   return Object.assign({}, menu, { ingredients: ing, displayName: nm, name: nm });
+}
+
+function midStageMenu(menu) {
+  if (!menu) return menu;
+  return menuWithout(menu, bannedForMidStage(menu.ingredients));
 }
 
 function midNoteOf(menu) {
@@ -2556,6 +2562,46 @@ function midNoteOf(menu) {
   // 사람이 이미 같은 내용을 적어뒀으면 중복해서 붙이지 않는다
   if (manual && banned.every(b => manual.includes(b))) return manual;
   return manual ? auto + ' / ' + manual : auto;
+}
+
+// ===== 후기·완료기에서 빼야 하는 재료 (2026-11-15 사장님: "연두부는 중기만") =====
+// 연두부는 **중기가 못 먹는 단백질의 대타**로 넣는다. 11-19(목) '새우 당근'(새우·당근·양파·
+// 채소상탕·로메인·연두부·고구마)이 그 모양이다 — 중기는 새우를 빼고 연두부를 먹고,
+// 후기·완료기는 새우를 먹으니 연두부가 겹쳐서 단백질이 둘이 된다. 그러면 단계마다
+// 다른 걸 먹게 되고 조리도 손님 설명도 헷갈린다(findHeavyMenus 의 '단백질 2개' 경고와 같은 이유).
+//
+// 이 규칙은 **지금까지 코드로 적혀 있지 않았다.** 3300행 부근 주석에 "후기는 연두부 빼고"
+// 라고 예시로만 적혀 있었고 중기(새우)만 자동으로 빠졌다. 그래서 인쇄·이미지의 후기·완료기
+// 칸에는 연두부가 그대로 나갔고, 화면에도 그 사실이 안 보여서 올리기 전에 확인할 수가 없었다.
+//
+// ⚠️ **연두부가 그 메뉴의 주재료일 때는 빼면 안 된다.** 11-16(월) '연두부'(연두부·양파·
+//    채소상탕·콜리플라워·고구마·청경채)에서 빼면 후기·완료기가 단백질 없는 채소죽이 된다.
+//    그래서 '연두부면 뺀다' 가 아니라 **'중기에서 빠지는 재료가 같이 들어 있을 때만' 뺀다**
+//    — 대타가 필요해서 들어온 경우만 골라낸다.
+const LATE_STAGE_SUB = ['연두부'];
+
+// 이 메뉴에서 후기·완료기에 빠질 재료 목록
+function bannedForLateStage(ingredients) {
+  if (!bannedForMidStage(ingredients).length) return [];   // 대타가 아니라 주재료다 — 그대로 둔다
+  const list = String(ingredients || '').split(',').map(x => x.trim());
+  return LATE_STAGE_SUB.filter(b => list.some(x => x === b || x.includes(b)));
+}
+
+// 후기·완료기 칸에 쓸 메뉴. 빠지는 재료를 재료 목록과 이름에서 모두 뺀다.
+function lateStageMenu(menu) {
+  if (!menu) return menu;
+  return menuWithout(menu, bannedForLateStage(menu.ingredients));
+}
+
+// 화면·인쇄에 쓸 "후기·완료기 제외" 문구
+function lateNoteOf(menu) {
+  const banned = menu ? bannedForLateStage(menu.ingredients) : [];
+  return banned.length ? banned.join('·') + ' 제외' : '';
+}
+
+// 단계 하나에 쓸 메뉴 — 화면·인쇄·이미지가 모두 이 함수를 지나가게 한다.
+function stageMenuOf(menu, stage) {
+  return (stage === '중기') ? midStageMenu(menu) : lateStageMenu(menu);
 }
 
 // ===== 성분(재료 중량) 표기 =====
@@ -2847,13 +2893,15 @@ function openNutrition() {
     if (day.type !== 'yushik' || day.removed) return;
     (day.menus || []).forEach(m => {
       const dropped = bannedForMidStage(m.ingredients);
-      // 중기는 빠지는 재료가 있어 배합이 달라진다. 그때만 두 덩어리로 나눠 보여준다.
-      const variants = dropped.length
-        ? [{ tag: '중기', menu: midStageMenu(m) }, { tag: '후기·완료기', menu: m }]
+      const droppedLate = bannedForLateStage(m.ingredients);
+      // 단계마다 빠지는 재료가 있으면 배합이 달라진다. 그때만 두 덩어리로 나눠 보여준다.
+      const variants = (dropped.length || droppedLate.length)
+        ? [{ tag: '중기', menu: midStageMenu(m) }, { tag: '후기·완료기', menu: lateStageMenu(m) }]
         : [{ tag: '', menu: m }];
       const name = m.displayName || m.name || '';
       html += `<div class="nut-menu"><div class="nut-head">${escapeDup(day.dayName)}요일 · ${escapeDup(typeLabel(m.type))} — ${escapeDup(name)}</div>`;
       if (dropped.length) html += `<div class="nut-drop">중기는 ${escapeDup(dropped.join('·'))} 를 빼고 조리해요 — 배합이 달라집니다</div>`;
+      if (droppedLate.length) html += `<div class="nut-drop">후기·완료기는 ${escapeDup(droppedLate.join('·'))} 를 빼고 조리해요 — 배합이 달라집니다</div>`;
       variants.forEach(va => {
       const m = va.menu;
       if (va.tag) html += `<div class="nut-stage">${va.tag}</div>`;
@@ -3097,17 +3145,12 @@ function sumNutrients(items) {
 
 // 메뉴 하나를 단계·용량 기준으로 계산
 function nutritionFacts(menu, stage, volume) {
-  // 중기에서 빠지는 재료(새우)는 영양 계산에서도 빼야 한다.
+  // 그 단계에서 빠지는 재료는 영양 계산에서도 빼야 한다.
   // 안 그러면 "중기 새우 제외"라고 적어놓고 새우 영양은 더해진 값이 나간다.
-  if (stage === '중기' && menu) {
-    const banned = bannedForMidStage(menu.ingredients);
-    if (banned.length) {
-      menu = Object.assign({}, menu, {
-        ingredients: String(menu.ingredients || '').split(',').map(x => x.trim())
-          .filter(x => x && !banned.some(bb => x === bb || x.includes(bb))).join(', ')
-      });
-    }
-  }
+  // 2026-11-15: 후기·완료기에서 빠지는 연두부도 같다 — 빼고 조리하는데 단백질은
+  // 더해진 값이 나가면 표가 실제보다 후하게 보인다. 이름은 여기서 안 쓰므로
+  // stageMenuOf 가 이름까지 손대도 영양 계산에는 영향이 없다.
+  if (menu) menu = stageMenuOf(menu, stage);
   const n = nutritionOf(menu, volume);
   const items = n.rows.slice();
 
@@ -3394,7 +3437,7 @@ function findWeakMenus() {
         try { f = nutritionFacts(m, stage, 230); } catch (e) { return; }
         if (!f || !f.pct) return;
         const pct = Math.round(f.pct[2] * sv.grams / BASE_PACK_G);
-        const shown = (stage === '중기') ? midStageMenu(m) : m;
+        const shown = stageMenuOf(m, stage);
         const sources = proteinSourcesIn(shown.ingredients);
         // 단백질 재료가 없거나, 있어도 수치가 아주 낮을 때만
         if (sources.length && pct >= WEAK_PROTEIN_PCT) return;
@@ -3404,7 +3447,7 @@ function findWeakMenus() {
           name: shown.displayName || m.name || '',
           noSource: sources.length === 0,
           pct,
-          dropped: stage === '중기' ? bannedForMidStage(m.ingredients) : [],
+          dropped: stage === '중기' ? bannedForMidStage(m.ingredients) : bannedForLateStage(m.ingredients),
         });
       });
     });
@@ -3768,6 +3811,7 @@ function renderDayCard(day, accentBg, dupeSet, dupeColorMap) {
       const ing = normalizeYushikIngredients(m.ingredients||'', m.type);
       if (ing) h += `<div style="font-size:11px;font-weight:700;color:var(--text);line-height:1.4">${highlightDupes(ing, dupeSet, dupeColorMap)}</div>`;
       if (midNoteOf(m)) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${midNoteOf(m)}</div>`;
+      if (lateNoteOf(m)) h += `<div style="font-size:10px;color:#1a6a8a;margin-top:2px;font-weight:600">⚠️ 후기·완료기: ${lateNoteOf(m)}</div>`;
       h += '</div>';
     });
   }
@@ -3835,6 +3879,7 @@ function renderEditableDayCard(day, di, accentBg, dupeSet, dupeColorMap) {
       h += `<div style="flex:1">`;
       if (ing) h += `<div style="font-size:11px;font-weight:700;color:var(--text);line-height:1.4">${highlightDupes(ing, dupeSet, dupeColorMap)}</div>`;
       if (midNoteOf(m)) h += `<div style="font-size:10px;color:#b84a1a;margin-top:2px;font-weight:600">⚠️ 중기: ${midNoteOf(m)}</div>`;
+      if (lateNoteOf(m)) h += `<div style="font-size:10px;color:#1a6a8a;margin-top:2px;font-weight:600">⚠️ 후기·완료기: ${lateNoteOf(m)}</div>`;
       h += `</div><button onclick="openEditAndRefresh(${di},${mi})" style="background:none;border:none;font-size:12px;cursor:pointer;padding:0;flex-shrink:0;opacity:0.7">✏️</button>`;
       h += '</div>';
     });
@@ -3958,6 +4003,7 @@ function renderSelectedWeek() {
           const _ing = normalizeYushikIngredients(m.ingredients||'', m.type);
           if (_ing) html += `<div style="font-size:12px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:2px">${_ing}</div>`;
           if (midNoteOf(m)) html += `<div style="font-size:10px;color:#b84a1a;font-weight:600">⚠️ 중기: ${midNoteOf(m)}</div>`;
+          if (lateNoteOf(m)) html += `<div style="font-size:10px;color:#1a6a8a;font-weight:600">⚠️ 후기·완료기: ${lateNoteOf(m)}</div>`;
           html += '</div>';
         });
       }
@@ -4148,19 +4194,25 @@ async function downloadImages() {
 
       if (day.type === 'yushik') {
         // 이유식 - 3개 메뉴에서 이름/재료 추출
-        const menus = day.menus.map(m => ({
-          name: (m.displayName || m.name).replace(' 죽/무른밥/진밥',''),
+        // name·ingred 는 menu-image.py 에서 **후기·완료기 줄**(ri>=1)이 쓴다. 중기 대타로
+        // 들어온 연두부는 그 줄에서 빠져야 하므로 lateStageMenu 를 거친 값을 넣는다.
+        const menus = day.menus.map(m => {
+          const lm = lateStageMenu(m);
+          return {
+          name: (lm.displayName || lm.name).replace(' 죽/무른밥/진밥',''),
           // 중기는 빠지는 재료가 있어 이름·재료가 달라진다. 그 줄에만 쓸 값을 따로 보낸다.
           mid_name: (midStageMenu(m).displayName || midStageMenu(m).name || '').replace(' 죽/무른밥/진밥',''),
           mid_ingred: midStageMenu(m).ingredients.split(',').map(x => x.trim()).filter(Boolean).filter(x => !HIDEING.includes(x))
             .reduce((acc, _, i, arr) => { if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', ')); return acc; }, []),
           // 인쇄물에 "중기: 새우 제외"가 빠져서 그냥 나가던 문제 — 이미지에도 함께 넘긴다
           mid_note: midNoteOf(m),
-          ingred: m.ingredients.split(',').map(s => s.trim()).filter(s => !HIDEING.includes(s)).reduce((acc, _, i, arr) => {
+          late_note: lateNoteOf(m),
+          ingred: lm.ingredients.split(',').map(s => s.trim()).filter(s => !HIDEING.includes(s)).reduce((acc, _, i, arr) => {
             if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', '));
             return acc;
           }, [])
-        }));
+          };
+        });
 
         // 원산지 자동 생성 (재료에서 추출)
         const allIngred = day.menus.flatMap(m =>
@@ -4382,11 +4434,13 @@ function printMenuTable(withNut) {
   //   칼슘은 원래 분유·모유가 맡는 몫이라 아예 다른 계열(회청색)로 빼서
   //   "부족한 게 아니라 담당이 다른 것"임을 색으로 알린다.
   // 알레르기는 칸마다 넣으면 있는 칸만 높아져서 막대 줄이 어긋난다. 표 아래 한 곳에 모은다.
-  // 중기는 빠지는 재료가 있어 같은 메뉴라도 알레르기 목록이 달라진다.
-  // (3번은 새우가 빠지므로 대두만, 6·9번은 새우·대두) — 칸마다 실제 내용으로 다시 계산한다.
+  // 단계마다 빠지는 재료가 있어 같은 메뉴라도 알레르기 목록이 달라진다.
+  // (11-19 목 3번은 새우가 빠져 연두부의 대두만, 6·9번은 연두부가 빠져 새우만)
+  // — 칸마다 실제 내용으로 다시 계산한다.
   function allergyBox(menus) {
     const groups = new Map();
     const mids = [];
+    const lates = [];
     (menus || []).forEach((m0, mi) => {
       STAGES_ORDER.forEach((st, ri) => {
         const list = allergensOf(stageMenu(m0, st).ingredients);
@@ -4402,8 +4456,15 @@ function printMenuTable(withNut) {
         const num = String((NUMS[0] && NUMS[0][mi]) || '').replace('.', '');
         mids.push('<b>' + num + '번</b> ' + banned.join('·') + '를 빼고 조리합니다');
       }
+      // 후기·완료기에서 빠지는 재료(중기 대타로 들어온 연두부)도 같은 자리에 적는다 —
+      // 적혀 있지 않으면 조리하는 사람이 알 길이 없다. 두 줄(후기·완료기)을 한 줄로 묶는다.
+      const bannedLate = bannedForLateStage(m0.ingredients);
+      if (bannedLate.length) {
+        const nums = [1, 2].map(ri => String((NUMS[ri] && NUMS[ri][mi]) || '').replace('.', '')).filter(Boolean);
+        if (nums.length) lates.push('<b>' + nums.join('·') + '번</b> ' + bannedLate.join('·') + '를 빼고 조리합니다');
+      }
     });
-    if (!groups.size && !mids.length) return '';
+    if (!groups.size && !mids.length && !lates.length) return '';
     const parts = [];
     groups.forEach((nums, key) => {
       nums.sort((x, y) => Number(x) - Number(y));
@@ -4417,6 +4478,11 @@ function printMenuTable(withNut) {
       h += (parts.length ? '<br>' : '')
         + '<span style="font-weight:700;color:#c0491a;">중기 제외</span> &nbsp; '
         + '<span style="color:#c0491a;">' + mids.join(' &nbsp;/&nbsp; ') + '</span>';
+    }
+    if (lates.length) {
+      h += (parts.length || mids.length ? '<br>' : '')
+        + '<span style="font-weight:700;color:#1a6a8a;">후기·완료기 제외</span> &nbsp; '
+        + '<span style="color:#1a6a8a;">' + lates.join(' &nbsp;/&nbsp; ') + '</span>';
     }
     return h + '</div>';
   }
@@ -4510,9 +4576,10 @@ function printMenuTable(withNut) {
     + '</div>';
 
   // 재료를 다 빼면 buildTitle이 빈 문자열이 되어 "2. 죽"처럼 나간다. 그때는 원래 이름으로 되돌린다.
-  // 중기 칸에는 빠지는 재료를 아예 넣지 않는다(전역 midStageMenu와 같은 규칙).
+  // 단계 칸에는 그 단계에서 빠지는 재료를 아예 넣지 않는다(전역 stageMenuOf 와 같은 규칙 —
+  // 중기는 새우, 후기·완료기는 대타로 들어온 연두부).
   function stageMenu(m, stage) {
-    return (stage === '중기') ? midStageMenu(m) : m;
+    return stageMenuOf(m, stage);
   }
 
   function buildTitle(m) {
@@ -4894,17 +4961,22 @@ async function downloadPDF() {
     for (const day of currentMenu) {
       let payload;
       if (day.type === 'yushik') {
-        const menus = day.menus.map(m => ({
-          name: (m.displayName || m.name).replace(' 죽/무른밥/진밥',''),
+        // name·ingred 는 후기·완료기 줄이 쓴다 — 위 downloadImages 와 같은 이유로 lateStageMenu
+        const menus = day.menus.map(m => {
+          const lm = lateStageMenu(m);
+          return {
+          name: (lm.displayName || lm.name).replace(' 죽/무른밥/진밥',''),
           // 중기는 빠지는 재료가 있어 이름·재료가 달라진다. 그 줄에만 쓸 값을 따로 보낸다.
           mid_name: (midStageMenu(m).displayName || midStageMenu(m).name || '').replace(' 죽/무른밥/진밥',''),
           mid_ingred: midStageMenu(m).ingredients.split(',').map(x => x.trim()).filter(Boolean).filter(x => !HIDEING.includes(x))
             .reduce((acc, _, i, arr) => { if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', ')); return acc; }, []),
           mid_note: midNoteOf(m),
-          ingred: m.ingredients.split(',').map(s => s.trim()).filter(s => !HIDEING.includes(s)).reduce((acc, _, i, arr) => {
+          late_note: lateNoteOf(m),
+          ingred: lm.ingredients.split(',').map(s => s.trim()).filter(s => !HIDEING.includes(s)).reduce((acc, _, i, arr) => {
             if (i % 2 === 0) acc.push(arr.slice(i, i+2).join(', ')); return acc;
           }, [])
-        }));
+          };
+        });
         const allIngred = day.menus.flatMap(m =>
           m.ingredients.split(',').map(s => s.trim())
             .filter(s => s && !['양파','채소상탕','한우육수','닭육수'].includes(s) && !HIDEING.includes(s))

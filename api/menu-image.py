@@ -125,13 +125,14 @@ def make_yushik_image(data):
                 bb = draw.textbbox((0,0), il, font=f_ingred)
                 draw.text((mx+(COLMW-(bb[2]-bb[0]))//2, iy), il, fill=COL_MID, font=f_ingred)
                 iy += 17
-            # 중기(첫 줄)에만 "새우 제외" 같은 주의 문구를 넣는다.
-            # 예전엔 이 문구가 이미지에 아예 없어서, 화면에만 보이고 인쇄물엔 그냥 나갔다.
-            if ri == 0:
-                note = str(menu.get('mid_note') or '').strip()
-                if note:
-                    bb = draw.textbbox((0,0), note, font=f_note)
-                    draw.text((mx+(COLMW-(bb[2]-bb[0]))//2, ry+ROW_H-17), note, fill=COL_WARN, font=f_note)
+            # 줄마다 "빠지는 재료" 문구를 넣는다 — 중기는 새우 제외, 후기·완료기는
+            # 중기 대타로 들어온 연두부 제외. 예전엔 이 문구가 이미지에 아예 없어서,
+            # 화면에만 보이고 인쇄물엔 그냥 나갔다.
+            # late_note 가 없는(예전) payload 면 빈 문자열이 되어 전과 똑같이 아무것도 안 그린다.
+            note = str(menu.get('mid_note' if ri == 0 else 'late_note') or '').strip()
+            if note:
+                bb = draw.textbbox((0,0), note, font=f_note)
+                draw.text((mx+(COLMW-(bb[2]-bb[0]))//2, ry+ROW_H-17), note, fill=COL_WARN, font=f_note)
 
     oy = TR + TABLE_H + 14
     bb = draw.textbbox((0,0), origins, font=f_origin)
